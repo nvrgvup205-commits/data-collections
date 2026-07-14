@@ -5,21 +5,39 @@ import { exportExcel, exportPdf } from '../lib/exporters'
 interface Props {
   entries: Entry[]
   sections: Section[]
+  companies: string[]
+  initialCompany?: string
   onClose: () => void
 }
 
-export default function ExportPanel({ entries, sections, onClose }: Props) {
-  const [targetCompany, setTargetCompany] = useState('')
+export default function ExportPanel({
+  entries,
+  sections,
+  companies,
+  initialCompany,
+  onClose,
+}: Props) {
+  const [companyFilter, setCompanyFilter] = useState(initialCompany || 'all')
   const [researcher, setResearcher] = useState('')
   const [sectionFilter, setSectionFilter] = useState('all')
   const [busy, setBusy] = useState(false)
 
   const filtered = useMemo(() => {
-    if (sectionFilter === 'all') return entries
-    return entries.filter((e) => e.sectionId === sectionFilter)
-  }, [entries, sectionFilter])
+    return entries.filter((e) => {
+      if (sectionFilter !== 'all' && e.sectionId !== sectionFilter) return false
+      if (
+        companyFilter !== 'all' &&
+        (e.targetCompany?.trim() || '') !== companyFilter
+      )
+        return false
+      return true
+    })
+  }, [entries, sectionFilter, companyFilter])
 
-  const meta = { targetCompany, researcher }
+  const meta = {
+    targetCompany: companyFilter !== 'all' ? companyFilter : '',
+    researcher,
+  }
 
   const doExcel = () => {
     if (!filtered.length) return
@@ -42,20 +60,25 @@ export default function ExportPanel({ entries, sections, onClose }: Props) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>تصدير البحث</h2>
+          <h2>تصدير التقرير</h2>
           <button className="icon-btn" onClick={onClose}>
             ✕
           </button>
         </div>
 
         <label className="field">
-          <span>البحث موجّه إلى (اسم الشركة)</span>
-          <input
-            type="text"
-            value={targetCompany}
-            onChange={(e) => setTargetCompany(e.target.value)}
-            placeholder="مثال: شركة الأفق للتسويق"
-          />
+          <span>الشركة المقدَّم إليها التقرير</span>
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+          >
+            <option value="all">كل الشركات</option>
+            {companies.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="field">
@@ -82,7 +105,10 @@ export default function ExportPanel({ entries, sections, onClose }: Props) {
           </select>
         </label>
 
-        <p className="hint muted">سيتم تصدير {filtered.length} مكان.</p>
+        <p className="hint muted">
+          سيتم تصدير {filtered.length} مكان
+          {companyFilter !== 'all' ? ` للشركة: ${companyFilter}` : ''}.
+        </p>
 
         <div className="form-actions">
           <button

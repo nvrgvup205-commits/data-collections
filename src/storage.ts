@@ -26,6 +26,7 @@ export function loadData(): AppData {
         parsed.entries = parsed.entries.map((e) => ({
           ...e,
           audioNote: e.audioNote ?? '',
+          photos: Array.isArray(e.photos) ? e.photos : [],
         }))
         return parsed
       }

@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AppData, Entry, Section, SECTION_COLORS } from './types'
 import { loadData, saveData, uid } from './storage'
+import { deleteBlob } from './lib/media'
 import EntryForm from './components/EntryForm'
 import ExportPanel from './components/ExportPanel'
+import MediaImage from './components/MediaImage'
 
 type View = 'list' | 'form'
 
 export default function App() {
   const [data, setData] = useState<AppData>(() => loadData())
   const [activeSection, setActiveSection] = useState<string>('all')
+  const [activeCompany, setActiveCompany] = useState<string>('all')
   const [view, setView] = useState<View>('list')
   const [editing, setEditing] = useState<Entry | undefined>(undefined)
   const [showExport, setShowExport] = useState(false)
@@ -18,10 +21,22 @@ export default function App() {
     saveData(data)
   }, [data])
 
+  const companies = useMemo(() => {
+    const set = new Set<string>()
+    data.entries.forEach((e) => {
+      const c = e.targetCompany?.trim()
+      if (c) set.add(c)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))
+  }, [data.entries])
+
   const filteredEntries = useMemo(() => {
     let list = [...data.entries].sort((a, b) => b.updatedAt - a.updatedAt)
     if (activeSection !== 'all') {
       list = list.filter((e) => e.sectionId === activeSection)
+    }
+    if (activeCompany !== 'all') {
+      list = list.filter((e) => (e.targetCompany?.trim() || '') === activeCompany)
     }
     const q = search.trim().toLowerCase()
     if (q) {
@@ -29,11 +44,12 @@ export default function App() {
         (e) =>
           e.placeName.toLowerCase().includes(q) ||
           e.managerName.toLowerCase().includes(q) ||
-          e.address.toLowerCase().includes(q),
+          e.address.toLowerCase().includes(q) ||
+          (e.targetCompany || '').toLowerCase().includes(q),
       )
     }
     return list
-  }, [data.entries, activeSection, search])
+  }, [data.entries, activeSection, activeCompany, search])
 
   const sectionName = (id: string) =>
     data.sections.find((s) => s.id === id)?.name ?? '-'
@@ -62,6 +78,8 @@ export default function App() {
 
   const deleteEntry = (id: string) => {
     if (!confirm('حذف هذا المكان نهائيًا؟')) return
+    const target = data.entries.find((e) => e.id === id)
+    target?.photos?.forEach((p) => void deleteBlob(p.id))
     setData((prev) => ({
       ...prev,
       entries: prev.entries.filter((e) => e.id !== id),
@@ -143,9 +161,33 @@ export default function App() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث باسم المكان أو المدير أو العنوان..."
+              placeholder="ابحث باسم المكان أو المدير أو العنوان أو الشركة..."
             />
+            <select
+              className="company-filter"
+              value={activeCompany}
+              onChange={(e) => setActiveCompany(e.target.value)}
+            >
+              <option value="all">كل الشركات ({data.entries.length})</option>
+              {companies.map((c) => {
+                const count = data.entries.filter(
+                  (e) => (e.targetCompany?.trim() || '') === c,
+                ).length
+                return (
+                  <option key={c} value={c}>
+                    {c} ({count})
+                  </option>
+                )
+              })}
+            </select>
           </div>
+
+          {activeCompany !== 'all' && (
+            <div className="company-banner">
+              التقارير المقدَّمة إلى: <strong>{activeCompany}</strong> —{' '}
+              {filteredEntries.length} تقرير
+            </div>
+          )}
 
           {filteredEntries.length === 0 ? (
             <div className="empty">
@@ -170,6 +212,16 @@ export default function App() {
                       ? e.customActivity
                       : e.activityType}
                   </p>
+                  {e.targetCompany && (
+                    <p className="card-line company">🏢 مُقدَّم إلى: {e.targetCompany}</p>
+                  )}
+                  {e.photos?.length > 0 && (
+                    <div className="card-photos">
+                      {e.photos.slice(0, 3).map((p) => (
+                        <MediaImage key={p.id} id={p.id} alt="صورة المدخل" className="card-photo" />
+                      ))}
+                    </div>
+                  )}
                   {e.address && <p className="card-line">📍 {e.address}</p>}
                   {e.managerName && (
                     <p className="card-line">👤 {e.managerName}</p>
@@ -216,6 +268,7 @@ export default function App() {
           <h2>{editing ? 'تعديل مكان' : 'إضافة مكان جديد'}</h2>
           <EntryForm
             sections={data.sections}
+            companies={companies}
             initial={editing}
             defaultSectionId={defaultSectionId}
             onSave={saveEntry}
@@ -228,6 +281,8 @@ export default function App() {
         <ExportPanel
           entries={data.entries}
           sections={data.sections}
+          companies={companies}
+          initialCompany={activeCompany !== 'all' ? activeCompany : ''}
           onClose={() => setShowExport(false)}
         />
       )}

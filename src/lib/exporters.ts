@@ -2,10 +2,26 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { Entry, Section } from '../types'
+import { getBlob, blobToDataUrl } from './media'
 
 export interface ExportMeta {
   targetCompany: string
   researcher: string
+}
+
+async function collectPhotoDataUrls(entries: Entry[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  for (const e of entries) {
+    for (const p of e.photos ?? []) {
+      try {
+        const blob = await getBlob(p.id)
+        if (blob) map.set(p.id, await blobToDataUrl(blob))
+      } catch {
+        /* skip unreadable photo */
+      }
+    }
+  }
+  return map
 }
 
 function activityLabel(e: Entry): string {
@@ -26,6 +42,7 @@ export function exportExcel(
 ): void {
   const rows = entries.map((e, i) => ({
     'م': i + 1,
+    'الشركة المقدَّم إليها': e.targetCompany,
     'القسم': sectionName(sections, e.sectionId),
     'اسم المكان': e.placeName,
     'نوع النشاط': activityLabel(e),
@@ -36,14 +53,15 @@ export function exportExcel(
     'رقم الجوال': e.managerPhone,
     'تمت المقابلة؟': e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : '',
     'ملخص المقابلة': e.meetingNotes,
+    'عدد الصور': e.photos?.length ?? 0,
     'التاريخ': new Date(e.createdAt).toLocaleString('ar-EG'),
   }))
 
   const ws = XLSX.utils.json_to_sheet(rows)
   ws['!cols'] = [
-    { wch: 4 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 32 },
+    { wch: 4 }, { wch: 22 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 32 },
     { wch: 22 }, { wch: 20 }, { wch: 18 }, { wch: 16 }, { wch: 12 },
-    { wch: 40 }, { wch: 20 },
+    { wch: 40 }, { wch: 9 }, { wch: 20 },
   ]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'البحث الميداني')
@@ -64,6 +82,7 @@ function buildReportHtml(
   entries: Entry[],
   sections: Section[],
   meta: ExportMeta,
+  photoUrls: Map<string, string>,
 ): HTMLElement {
   const container = document.createElement('div')
   container.style.cssText =
@@ -84,12 +103,24 @@ function buildReportHtml(
         e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : 'غير محدد'
       const coords =
         e.lat != null && e.lng != null ? `${e.lat.toFixed(6)}, ${e.lng.toFixed(6)}` : '-'
+      const photoImgs = (e.photos ?? [])
+        .map((p) => photoUrls.get(p.id))
+        .filter((u): u is string => !!u)
+        .map(
+          (u) =>
+            `<img src="${u}" style="width:180px;height:auto;border:1px solid #cbd5e1;border-radius:8px;margin:4px;" />`,
+        )
+        .join('')
+      const photosBlock = photoImgs
+        ? `<div style="margin-top:8px;"><div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:4px;">صور المدخل:</div>${photoImgs}</div>`
+        : ''
       return `
       <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:14px;background:#f8fafc;page-break-inside:avoid;">
         <h2 style="margin:0 0 8px;font-size:17px;color:#0f172a;">${i + 1}. ${escapeHtml(e.placeName) || 'بدون اسم'}
           <span style="font-size:12px;color:#0f766e;font-weight:normal;">(${escapeHtml(sectionName(sections, e.sectionId))})</span>
         </h2>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          ${row('الشركة المقدَّم إليها', e.targetCompany)}
           ${row('نوع النشاط', activityLabel(e))}
           ${row('العنوان', e.address)}
           ${row('ملاحظات العنوان', e.addressNotes)}
@@ -99,6 +130,7 @@ function buildReportHtml(
           ${row('تمت المقابلة؟', met)}
           ${row('ملخص المقابلة', e.meetingNotes)}
         </table>
+        ${photosBlock}
       </div>`
     })
     .join('')
@@ -127,7 +159,8 @@ export async function exportPdf(
   sections: Section[],
   meta: ExportMeta,
 ): Promise<void> {
-  const node = buildReportHtml(entries, sections, meta)
+  const photoUrls = await collectPhotoDataUrls(entries)
+  const node = buildReportHtml(entries, sections, meta, photoUrls)
   document.body.appendChild(node)
   try {
     const canvas = await html2canvas(node, {

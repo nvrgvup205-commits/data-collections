@@ -7,6 +7,11 @@ export interface Section {
   createdAt: number
 }
 
+export interface PhotoRef {
+  id: Id
+  capturedAt: number
+}
+
 export interface Entry {
   id: Id
   sectionId: Id
@@ -22,6 +27,7 @@ export interface Entry {
   met: 'yes' | 'no' | ''
   meetingNotes: string
   audioNote: string
+  photos: PhotoRef[]
   targetCompany: string
   createdAt: number
   updatedAt: number

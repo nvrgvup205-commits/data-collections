@@ -413,6 +413,127 @@ body {
   background: #fff;
 }
 
+/* Company filter + banner */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar .search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.company-filter {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+  min-width: 200px;
+}
+
+.company-filter:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.company-banner {
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  color: #115e59;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.card-line.company {
+  color: #b45309;
+  font-weight: 600;
+}
+
+/* Photos */
+.photo-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.photo-item {
+  position: relative;
+  width: 130px;
+}
+
+.photo-item .media-img {
+  width: 130px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.media-placeholder {
+  width: 130px;
+  height: 100px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(
+    45deg,
+    #f1f5f9,
+    #f1f5f9 8px,
+    #e2e8f0 8px,
+    #e2e8f0 16px
+  );
+}
+
+.photo-remove {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(190, 18, 60, 0.9);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.photo-time {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  text-align: center;
+}
+
+.card-photos {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+
+.card-photo.media-img {
+  width: 72px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
 /* Interactive map (Leaflet) */
 .imap {
   margin-top: 8px;

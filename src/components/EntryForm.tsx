@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { ACTIVITY_TYPES, Entry, Section } from '../types'
+import { ACTIVITY_TYPES, Entry, PhotoRef, Section } from '../types'
 import { reverseGeocode } from '../lib/geo'
+import { deleteBlob } from '../lib/media'
 import { uid } from '../storage'
 import InteractiveMap from './InteractiveMap'
 import VoiceInput from './VoiceInput'
+import PhotoCapture from './PhotoCapture'
 
 interface Props {
   sections: Section[]
+  companies: string[]
   initial?: Entry
   defaultSectionId: string
   onSave: (entry: Entry) => void
@@ -33,6 +36,7 @@ function blankEntry(sectionId: string): Entry {
     met: '',
     meetingNotes: '',
     audioNote: '',
+    photos: [],
     targetCompany: '',
     createdAt: now,
     updatedAt: now,
@@ -41,6 +45,7 @@ function blankEntry(sectionId: string): Entry {
 
 export default function EntryForm({
   sections,
+  companies,
   initial,
   defaultSectionId,
   onSave,
@@ -79,6 +84,15 @@ export default function EntryForm({
         setGeoMsg('تعذّر جلب نص العنوان تلقائيًا، اكتبه يدويًا لو أردت.')
       }
     }, 800)
+  }
+
+  const addPhoto = (ref: PhotoRef) => {
+    setEntry((prev) => ({ ...prev, photos: [...prev.photos, ref] }))
+  }
+
+  const removePhoto = (id: string) => {
+    void deleteBlob(id)
+    setEntry((prev) => ({ ...prev, photos: prev.photos.filter((p) => p.id !== id) }))
   }
 
   const handleAudioNote = (dataUrl: string) => {
@@ -133,6 +147,27 @@ export default function EntryForm({
             placeholder="مثال: مطعم النخيل"
           />
         </label>
+      </div>
+
+      <label className="field">
+        <span>الشركة المقدَّم إليها التقرير</span>
+        <input
+          type="text"
+          list="companies-list"
+          value={entry.targetCompany}
+          onChange={(e) => update('targetCompany', e.target.value)}
+          placeholder="مثال: شركة الأفق للتسويق"
+        />
+        <datalist id="companies-list">
+          {companies.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      </label>
+
+      <div className="field">
+        <span>صورة مدخل المكان (يظهر عليها وقت وتاريخ التصوير)</span>
+        <PhotoCapture photos={entry.photos} onAdd={addPhoto} onRemove={removePhoto} />
       </div>
 
       <div className="field">
