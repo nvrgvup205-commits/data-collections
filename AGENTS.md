@@ -14,6 +14,17 @@ Standard scripts are defined in `package.json` (do not duplicate them here):
 - Build: `npm run build`, preview: `npm run preview`.
 - Checks: `npm run lint` (ESLint) and `npm run typecheck` (`tsc -b --noEmit`).
 
+### Data & media storage
+
+- App state (sections + entries metadata) is stored as one JSON blob in `localStorage`
+  (`src/storage.ts`). `loadData()` normalizes older entries for newer fields.
+- **Photos are stored as JPEG blobs in IndexedDB** (`src/lib/media.ts`, DB `field-research-media`)
+  — NOT in localStorage — to avoid the ~5MB quota. Entries keep only `PhotoRef` ({id, capturedAt}).
+  `MediaImage` loads blobs as object URLs; PDF export converts them to data URLs.
+- Photos are watermarked with capture date/time on a canvas before storage (`src/lib/image.ts`).
+- Audio notes are still small data URLs inside the entry JSON (guarded to ~1.5MB each).
+- `targetCompany` is per-entry ("الشركة المقدَّم إليها التقرير"); the list can be filtered by company.
+
 ### Non-obvious notes
 
 - **HTTPS-only browser features**: geolocation (GPS) and the voice-to-text feature
