@@ -39,6 +39,8 @@ export default function InteractiveMap({ lat, lng, onChange }: Props) {
       center: start,
       zoom: lat != null ? 16 : 12,
       zoomControl: true,
+      // Avoid hijacking page scroll; zoom via +/- buttons or pinch instead.
+      scrollWheelZoom: false,
     })
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
