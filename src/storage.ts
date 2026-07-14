@@ -22,6 +22,11 @@ export function loadData(): AppData {
     if (raw) {
       const parsed = JSON.parse(raw) as AppData
       if (parsed && Array.isArray(parsed.sections) && Array.isArray(parsed.entries)) {
+        // Normalize entries created before newer fields existed.
+        parsed.entries = parsed.entries.map((e) => ({
+          ...e,
+          audioNote: e.audioNote ?? '',
+        }))
         return parsed
       }
     }

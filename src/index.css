@@ -413,12 +413,88 @@ body {
   background: #fff;
 }
 
+/* Interactive map (Leaflet) */
+.imap {
+  margin-top: 8px;
+}
+
+.imap-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.imap-link {
+  font-size: 12px;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.imap-canvas {
+  height: 320px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  z-index: 0;
+}
+
+.leaflet-pin-icon {
+  background: transparent;
+  border: none;
+}
+
+.pin-marker {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+  cursor: grab;
+}
+
+.imap-hint {
+  margin-top: 6px;
+}
+
+/* Audio note */
+.audio-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.audio-note audio {
+  height: 40px;
+  max-width: 100%;
+}
+
 /* Voice */
+.voice-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 .voice-input {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.mic-btn.alt {
+  border-color: #7c3aed;
+  color: #7c3aed;
+}
+
+.mic-btn.alt.recording {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
 }
 
 .mic-btn {
@@ -529,6 +605,9 @@ body {
 }
 
 @media (max-width: 620px) {
+  .app {
+    padding: 14px 12px 48px;
+  }
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -541,5 +620,20 @@ body {
   }
   .header-actions .btn {
     flex: 1;
+  }
+  .brand h1 {
+    font-size: 19px;
+  }
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .imap-canvas {
+    height: 260px;
+  }
+  .radio-row {
+    flex-direction: column;
+  }
+  .radio-pill {
+    justify-content: center;
   }
 }

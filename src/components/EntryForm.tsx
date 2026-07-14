@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ACTIVITY_TYPES, Entry, Section } from '../types'
-import { getCurrentPosition, reverseGeocode } from '../lib/geo'
+import { reverseGeocode } from '../lib/geo'
 import { uid } from '../storage'
-import MapPreview from './MapPreview'
+import InteractiveMap from './InteractiveMap'
 import VoiceInput from './VoiceInput'
 
 interface Props {
@@ -12,6 +12,9 @@ interface Props {
   onSave: (entry: Entry) => void
   onCancel: () => void
 }
+
+// Max audio note size we persist to localStorage (~1.5MB as data URL).
+const MAX_AUDIO_BYTES = 1_500_000
 
 function blankEntry(sectionId: string): Entry {
   const now = Date.now()
@@ -29,6 +32,7 @@ function blankEntry(sectionId: string): Entry {
     customActivity: '',
     met: '',
     meetingNotes: '',
+    audioNote: '',
     targetCompany: '',
     createdAt: now,
     updatedAt: now,
@@ -45,41 +49,51 @@ export default function EntryForm({
   const [entry, setEntry] = useState<Entry>(
     initial ?? blankEntry(defaultSectionId),
   )
-  const [locating, setLocating] = useState(false)
-  const [locateMsg, setLocateMsg] = useState('')
+  const [geoMsg, setGeoMsg] = useState('')
+  const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (geoTimer.current) clearTimeout(geoTimer.current)
+    }
+  }, [])
 
   const update = <K extends keyof Entry>(key: K, value: Entry[K]) => {
     setEntry((prev) => ({ ...prev, [key]: value }))
   }
 
-  const detectLocation = async () => {
-    setLocating(true)
-    setLocateMsg('جارٍ تحديد الموقع...')
-    try {
-      const coords = await getCurrentPosition()
-      update('lat', coords.lat)
-      update('lng', coords.lng)
-      setLocateMsg('تم تحديد الموقع، جارٍ جلب العنوان...')
+  const handleCoords = (lat: number, lng: number) => {
+    setEntry((prev) => ({ ...prev, lat, lng }))
+    setGeoMsg('جارٍ جلب العنوان لهذا الموقع...')
+    if (geoTimer.current) clearTimeout(geoTimer.current)
+    geoTimer.current = setTimeout(async () => {
       try {
-        const addr = await reverseGeocode(coords)
+        const addr = await reverseGeocode({ lat, lng })
         if (addr) {
-          setEntry((prev) => ({ ...prev, lat: coords.lat, lng: coords.lng, address: addr }))
+          setEntry((prev) => ({ ...prev, address: addr }))
+          setGeoMsg('تم تحديث العنوان تلقائيًا (يمكنك تعديله).')
+        } else {
+          setGeoMsg('')
         }
-        setLocateMsg('تم تحديد الموقع والعنوان بنجاح.')
       } catch {
-        setLocateMsg('تم تحديد الموقع، لكن تعذر جلب نص العنوان تلقائيًا.')
+        setGeoMsg('تعذّر جلب نص العنوان تلقائيًا، اكتبه يدويًا لو أردت.')
       }
-    } catch (e) {
-      setLocateMsg((e as Error).message)
-    } finally {
-      setLocating(false)
+    }, 800)
+  }
+
+  const handleAudioNote = (dataUrl: string) => {
+    if (dataUrl.length > MAX_AUDIO_BYTES) {
+      alert(
+        'المقطع الصوتي طويل جدًا لحفظه محليًا. سجّل مقطعًا أقصر أو اكتفِ بالنص المكتوب.',
+      )
+      return
     }
+    setEntry((prev) => ({ ...prev, audioNote: dataUrl }))
   }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!entry.placeName.trim()) {
-      setLocateMsg('')
       alert('من فضلك اكتب اسم المكان أولًا.')
       return
     }
@@ -89,9 +103,7 @@ export default function EntryForm({
   const appendMeetingNote = (text: string) => {
     setEntry((prev) => ({
       ...prev,
-      meetingNotes: prev.meetingNotes
-        ? prev.meetingNotes + ' ' + text
-        : text,
+      meetingNotes: prev.meetingNotes ? prev.meetingNotes + ' ' + text : text,
     }))
   }
 
@@ -124,17 +136,9 @@ export default function EntryForm({
       </div>
 
       <div className="field">
-        <span>الموقع على خرائط جوجل</span>
-        <button
-          type="button"
-          className="btn secondary"
-          onClick={detectLocation}
-          disabled={locating}
-        >
-          {locating ? 'جارٍ التحديد...' : 'تحديد موقعي على الخريطة'}
-        </button>
-        {locateMsg && <p className="hint muted">{locateMsg}</p>}
-        <MapPreview lat={entry.lat} lng={entry.lng} />
+        <span>الموقع على الخريطة</span>
+        <InteractiveMap lat={entry.lat} lng={entry.lng} onChange={handleCoords} />
+        {geoMsg && <p className="hint muted">{geoMsg}</p>}
       </div>
 
       <label className="field">
@@ -233,13 +237,25 @@ export default function EntryForm({
       {entry.met === 'yes' && (
         <div className="field">
           <span>ماذا حدث في المقابلة؟</span>
-          <VoiceInput onAppendText={appendMeetingNote} />
+          <VoiceInput onAppendText={appendMeetingNote} onAudioNote={handleAudioNote} />
           <textarea
             rows={4}
             value={entry.meetingNotes}
             onChange={(e) => update('meetingNotes', e.target.value)}
-            placeholder="اكتب ملخص المقابلة أو استخدم التسجيل الصوتي بالأعلى..."
+            placeholder="اكتب ملخص المقابلة أو استخدم الأدوات الصوتية بالأعلى..."
           />
+          {entry.audioNote && (
+            <div className="audio-note">
+              <audio controls src={entry.audioNote} />
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() => update('audioNote', '')}
+              >
+                حذف المقطع الصوتي
+              </button>
+            </div>
+          )}
         </div>
       )}
 

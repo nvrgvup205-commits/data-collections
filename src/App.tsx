@@ -189,6 +189,7 @@ export default function App() {
                   {e.met === 'yes' && e.meetingNotes && (
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
+                  {e.audioNote && <p className="card-line">🎙️ يوجد مقطع صوتي</p>}
                   <div className="card-actions">
                     <button className="btn ghost small" onClick={() => startEdit(e)}>
                       تعديل
