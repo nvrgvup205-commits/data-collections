@@ -28,5 +28,13 @@ Standard scripts are defined in `package.json` (do not duplicate them here):
 - **Google Maps** is embedded via the public `output=embed` URL — no API key required.
 - **PDF export** renders an off-screen HTML report with `html2canvas` + `jsPDF` (rasterized)
   so Arabic RTL text renders correctly; PDFs are image-based and can be several MB.
-- **Deployment target is Cloudflare Pages**: build command `npm run build`, output dir
-  `dist`. `public/_redirects` provides SPA fallback routing.
+- **Deployment target is Cloudflare Workers (Static Assets)** via `wrangler.jsonc`:
+  deploy with `npx wrangler deploy` (also `npm run deploy`). `wrangler deploy` runs
+  `npm run build` itself through `build.command` in `wrangler.jsonc`, then uploads `dist/`.
+  SPA routing is handled by `assets.not_found_handling: "single-page-application"`.
+  - The explicit `wrangler.jsonc` is intentional: it bypasses wrangler's Vite framework
+    auto-detection, which otherwise errors demanding Vite >= 6 ("cannot be automatically
+    configured"). Do NOT remove `wrangler.jsonc` or that error returns on deploy.
+  - Validate deploy config without credentials using `npx wrangler deploy --dry-run`.
+  - Cloudflare Pages also works as a static alternative (build `npm run build`, output `dist`,
+    `public/_redirects` for SPA fallback).

@@ -35,16 +35,30 @@ npm run dev
 | `npm run lint` | فحص جودة الكود (ESLint) |
 | `npm run typecheck` | فحص أنواع TypeScript |
 
-## النشر على Cloudflare Pages
+## النشر على Cloudflare
 
-هذا التطبيق ثابت (Static SPA) وجاهز للنشر على **Cloudflare Pages**:
+المشروع مهيّأ للنشر على **Cloudflare Workers** بميزة **Static Assets** عبر ملف
+`wrangler.jsonc` الموجود في جذر المشروع. أمر النشر:
 
-1. اربط مستودع GitHub هذا بـ Cloudflare Pages.
-2. اضبط الإعدادات:
-   - **Framework preset**: `Vite` (أو None)
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-3. انشر. ملف `public/_redirects` مضمّن لدعم توجيه SPA.
+```bash
+npx wrangler deploy
+```
+
+- `wrangler deploy` يشغّل `npm run build` تلقائيًا (عبر `build.command` في `wrangler.jsonc`)
+  ثم يرفع محتويات مجلد `dist`.
+- توجيه SPA مضبوط عبر `assets.not_found_handling: "single-page-application"`
+  (كل مسار غير موجود يُخدَم بـ `index.html`).
+
+> ملاحظة: وجود `wrangler.jsonc` صريح يتجاوز الاكتشاف التلقائي لإطار Vite في wrangler،
+> ولذلك لا حاجة لترقية Vite إلى الإصدار 6 (تفاديًا لخطأ
+> "The version of Vite ... cannot be automatically configured").
+
+### بديل: Cloudflare Pages
+
+يمكن أيضًا النشر على **Cloudflare Pages** كموقع ثابت:
+- **Build command**: `npm run build`
+- **Build output directory**: `dist`
+- ملف `public/_redirects` مضمّن لدعم توجيه SPA.
 
 ## ملاحظات
 
