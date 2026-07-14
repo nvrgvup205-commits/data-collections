@@ -49,9 +49,14 @@ npx wrangler deploy
 - توجيه SPA مضبوط عبر `assets.not_found_handling: "single-page-application"`
   (كل مسار غير موجود يُخدَم بـ `index.html`).
 
-> ملاحظة: وجود `wrangler.jsonc` صريح يتجاوز الاكتشاف التلقائي لإطار Vite في wrangler،
-> ولذلك لا حاجة لترقية Vite إلى الإصدار 6 (تفاديًا لخطأ
-> "The version of Vite ... cannot be automatically configured").
+> ملاحظة: هناك طبقتا حماية من خطأ
+> "The version of Vite ... cannot be automatically configured":
+> (1) وجود `wrangler.jsonc` صريح يتجاوز الاكتشاف التلقائي لإطار Vite في wrangler،
+> و(2) المشروع يعمل على **Vite 6** بحيث ينجح مسار الاكتشاف التلقائي أيضًا لو حدث.
+>
+> إذا استمر ظهور نفس الخطأ فالسبب أن Cloudflare يبني **Commit قديمًا** سابقًا لهذه
+> الإصلاحات (العلامة في السجل: تثبيت ~230 حزمة فقط و`wrangler ... not found`).
+> تأكد أن Cloudflare ينشر آخر Commit في الفرع (زر "Retry" يعيد نفس الـCommit القديم).
 
 ### بديل: Cloudflare Pages
 

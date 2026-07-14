@@ -32,9 +32,15 @@ Standard scripts are defined in `package.json` (do not duplicate them here):
   deploy with `npx wrangler deploy` (also `npm run deploy`). `wrangler deploy` runs
   `npm run build` itself through `build.command` in `wrangler.jsonc`, then uploads `dist/`.
   SPA routing is handled by `assets.not_found_handling: "single-page-application"`.
-  - The explicit `wrangler.jsonc` is intentional: it bypasses wrangler's Vite framework
-    auto-detection, which otherwise errors demanding Vite >= 6 ("cannot be automatically
-    configured"). Do NOT remove `wrangler.jsonc` or that error returns on deploy.
+  - Two layers protect against the wrangler "Vite cannot be automatically configured"
+    deploy error: (1) the explicit `wrangler.jsonc` bypasses wrangler's framework
+    auto-detection entirely, and (2) the project runs **Vite 6** so that even if the
+    auto-detection path runs, it can configure successfully (wrangler requires Vite >= 6).
+    Do NOT remove `wrangler.jsonc` and do NOT downgrade Vite below 6.
+  - IMPORTANT delivery note: this error also appears when Cloudflare builds a **stale
+    commit** that predates these fixes (symptom in build logs: only ~230 packages
+    installed and `wrangler ... not found and will be installed`). Ensure Cloudflare
+    deploys the latest commit of the connected branch (a "Retry" reuses the old commit SHA).
   - Validate deploy config without credentials using `npx wrangler deploy --dry-run`.
   - Cloudflare Pages also works as a static alternative (build `npm run build`, output `dist`,
     `public/_redirects` for SPA fallback).
