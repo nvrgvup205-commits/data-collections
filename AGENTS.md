@@ -42,5 +42,8 @@ Standard scripts are defined in `package.json` (do not duplicate them here):
     installed and `wrangler ... not found and will be installed`). Ensure Cloudflare
     deploys the latest commit of the connected branch (a "Retry" reuses the old commit SHA).
   - Validate deploy config without credentials using `npx wrangler deploy --dry-run`.
-  - Cloudflare Pages also works as a static alternative (build `npm run build`, output `dist`,
-    `public/_redirects` for SPA fallback).
+  - Do NOT add a `public/_redirects` catch-all (`/* /index.html 200`) for the Workers deploy;
+    it triggers a deploy-time "Infinite loop detected" error (code 100324). SPA routing is
+    handled by `not_found_handling`. (`_redirects` is only for the Cloudflare Pages alternative.)
+  - Cloudflare Pages also works as a static alternative (build `npm run build`, output `dist`;
+    add `public/_redirects` with `/* /index.html 200` only for Pages).

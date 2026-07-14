@@ -58,12 +58,17 @@ npx wrangler deploy
 > الإصلاحات (العلامة في السجل: تثبيت ~230 حزمة فقط و`wrangler ... not found`).
 > تأكد أن Cloudflare ينشر آخر Commit في الفرع (زر "Retry" يعيد نفس الـCommit القديم).
 
+> ملاحظة: لا تضع ملف `public/_redirects` بقاعدة `/* /index.html 200` مع Workers،
+> لأنه يسبّب خطأ "Infinite loop detected" عند النشر. توجيه SPA يتكفّل به
+> `not_found_handling` في `wrangler.jsonc`.
+
 ### بديل: Cloudflare Pages
 
 يمكن أيضًا النشر على **Cloudflare Pages** كموقع ثابت:
 - **Build command**: `npm run build`
 - **Build output directory**: `dist`
-- ملف `public/_redirects` مضمّن لدعم توجيه SPA.
+- لدعم توجيه SPA على Pages فقط، أضِف ملف `public/_redirects` يحوي: `/* /index.html 200`
+  (خاص بـ Pages — لا تستخدمه مع Workers).
 
 ## ملاحظات
 
