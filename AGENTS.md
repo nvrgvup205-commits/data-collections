@@ -14,6 +14,19 @@ Standard scripts are defined in `package.json` (do not duplicate them here):
 - Build: `npm run build`, preview: `npm run preview`.
 - Checks: `npm run lint` (ESLint) and `npm run typecheck` (`tsc -b --noEmit`).
 
+### Auth, roles & Supabase
+
+- Login is handled by `src/lib/auth.tsx` (context). Two roles: `researcher` (data collection
+  dashboard) and `company` (read-only portal showing reports where `targetCompany` = their company).
+- **Demo mode** (when Supabase env is NOT set): built-in accounts `1111/1111` (researcher) and
+  `2222/2222` (company → "شركة نخبة التسويق"). Session persists in `localStorage`.
+- **Supabase**: configured via `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (build-time env; the
+  anon key is public). If present, `src/lib/supabase.ts` enables it and auth uses
+  `signInWithPassword` (username is mapped to `<username>@demo.local`), reading role/company from a
+  `profiles` table. Run `supabase/schema.sql` in the Supabase SQL editor (tables + RLS + storage bucket).
+  NOTE: currently Supabase powers AUTH only; the places/photos DATA layer still uses local storage
+  and is pending migration to Supabase tables/Storage.
+
 ### Data & media storage
 
 - App state (sections + entries metadata) is stored as one JSON blob in `localStorage`
