@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from '../lib/auth'
+import { DEMO_ACCOUNTS, useAuth } from '../lib/auth'
 
 export default function Login() {
   const { login, loading } = useAuth()
@@ -17,9 +17,15 @@ export default function Login() {
     }
   }
 
-  const fillDemo = (u: string, p: string) => {
+  const loginAsDemo = async (u: string, p: string) => {
     setUsername(u)
     setPassword(p)
+    setError('')
+    try {
+      await login(u, p)
+    } catch (err) {
+      setError((err as Error).message)
+    }
   }
 
   return (
@@ -40,6 +46,8 @@ export default function Login() {
               onChange={(e) => setUsername(e.target.value)}
               placeholder="مثال: 1111"
               autoComplete="username"
+              inputMode="numeric"
+              dir="ltr"
             />
           </label>
           <label className="field">
@@ -48,8 +56,10 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••"
+              placeholder="••••••"
               autoComplete="current-password"
+              inputMode="numeric"
+              dir="ltr"
             />
           </label>
 
@@ -61,17 +71,25 @@ export default function Login() {
         </form>
 
         <div className="login-demo">
-          <p className="muted">حسابات الدخول (اضغط للتعبئة):</p>
+          <p className="muted">حسابات الدخول (اضغط للدخول مباشرة):</p>
           <div className="demo-chips">
-            <button className="chip" onClick={() => fillDemo('1111', '111111')}>
-              باحث — 1111 / 111111
-            </button>
-            <button className="chip" onClick={() => fillDemo('2222', '222222')}>
-              سعودي تريند — 2222 / 222222
-            </button>
-            <button className="chip" onClick={() => fillDemo('3333', '333333')}>
-              نخبة التسويق — 3333 / 333333
-            </button>
+            {DEMO_ACCOUNTS.map((account) => (
+              <button
+                key={account.username}
+                type="button"
+                className="chip"
+                disabled={loading}
+                onClick={() => void loginAsDemo(account.username, account.password)}
+              >
+                <span className="chip-title">
+                  {account.role === 'researcher' ? 'باحث' : account.name.replace(/^شركة\s+/, '')}
+                </span>
+                <span className="chip-creds" dir="ltr">
+                  <span>مستخدم: {account.username}</span>
+                  <span>مرور: {account.password}</span>
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       </div>

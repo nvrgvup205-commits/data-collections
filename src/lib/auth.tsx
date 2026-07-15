@@ -22,24 +22,43 @@ interface DemoAccount extends AuthUser {
   password: string
 }
 
-// Built-in demo accounts (used when Supabase is not configured).
+// Built-in demo accounts. Passwords are 6+ chars to match Supabase Auth
+// policy; same values are used in the login chips and in supabase/schema.sql.
 export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { username: '1111', password: '1111', name: 'باحث ميداني', role: 'researcher' },
+  {
+    username: '1111',
+    password: '111111',
+    name: 'باحث ميداني',
+    role: 'researcher',
+  },
   {
     username: '2222',
-    password: '2222',
+    password: '222222',
     name: 'سعودي تريند',
     role: 'company',
     company: 'سعودي تريند',
   },
   {
     username: '3333',
-    password: '3333',
+    password: '333333',
     name: 'شركة نخبة التسويق',
     role: 'company',
     company: 'شركة نخبة التسويق',
   },
 ]
+
+/** If the user swapped username/password for a known demo account, fix it. */
+export function normalizeDemoCredentials(
+  username: string,
+  password: string,
+): { username: string; password: string } {
+  const uname = username.trim()
+  const swapped = DEMO_ACCOUNTS.find(
+    (a) => a.password === uname && a.username === password,
+  )
+  if (swapped) return { username: swapped.username, password: swapped.password }
+  return { username: uname, password }
+}
 
 const SESSION_KEY = 'field-research-session'
 
@@ -73,14 +92,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     setLoading(true)
     try {
-      const uname = username.trim()
+      // Common mix-up on this form: typing the password into "اسم المستخدم"
+      // and the short username into "كلمة المرور". Auto-correct for demos.
+      const fixed = normalizeDemoCredentials(username, password)
+      const uname = fixed.username
+      const pwd = fixed.password
 
       if (isSupabaseEnabled && supabase) {
         // Supabase auth: treat the username as an email (append a domain if needed).
         const email = uname.includes('@') ? uname : `${uname}@example.com`
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
-          password,
+          password: pwd,
         })
         if (error) throw new Error('بيانات الدخول غير صحيحة')
         // Role + company come from a `profiles` row (see supabase/schema.sql).
@@ -100,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Demo mode
       const match = DEMO_ACCOUNTS.find(
-        (a) => a.username === uname && a.password === password,
+        (a) => a.username === uname && a.password === pwd,
       )
       if (!match) throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة')
       const { password: _pw, ...safe } = match

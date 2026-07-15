@@ -487,6 +487,37 @@ body {
 
 .demo-chips .chip {
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border-radius: 14px;
+  padding: 10px 14px;
+  line-height: 1.35;
+}
+
+.demo-chips .chip:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.demo-chips .chip-title {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.demo-chips .chip-creds {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.login-form input[dir='ltr'] {
+  text-align: left;
 }
 
 /* Company portal */
