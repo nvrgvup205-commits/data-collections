@@ -69,7 +69,10 @@ export default function Login() {
                 باحث — 1111 / 1111
               </button>
               <button className="chip" onClick={() => fillDemo('2222', '2222')}>
-                بوابة شركة — 2222 / 2222
+                سعودي تريند — 2222 / 2222
+              </button>
+              <button className="chip" onClick={() => fillDemo('3333', '3333')}>
+                نخبة التسويق — 3333 / 3333
               </button>
             </div>
           </div>

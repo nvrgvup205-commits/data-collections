@@ -674,6 +674,15 @@ body {
   font-weight: 600;
 }
 
+.card-line.time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mt-8 {
+  margin-top: 8px;
+}
+
 /* Photos */
 .photo-capture {
   display: flex;

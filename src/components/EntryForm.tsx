@@ -55,6 +55,9 @@ export default function EntryForm({
     initial ?? blankEntry(defaultSectionId),
   )
   const [geoMsg, setGeoMsg] = useState('')
+  const [companyNewMode, setCompanyNewMode] = useState<boolean>(
+    !!(initial?.targetCompany && !companies.includes(initial.targetCompany)),
+  )
   const geoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -151,18 +154,36 @@ export default function EntryForm({
 
       <label className="field">
         <span>الشركة المقدَّم إليها التقرير</span>
-        <input
-          type="text"
-          list="companies-list"
-          value={entry.targetCompany}
-          onChange={(e) => update('targetCompany', e.target.value)}
-          placeholder="مثال: شركة الأفق للتسويق"
-        />
-        <datalist id="companies-list">
+        <select
+          value={companyNewMode ? '__new__' : entry.targetCompany}
+          onChange={(e) => {
+            if (e.target.value === '__new__') {
+              setCompanyNewMode(true)
+              update('targetCompany', '')
+            } else {
+              setCompanyNewMode(false)
+              update('targetCompany', e.target.value)
+            }
+          }}
+        >
+          <option value="">— اختر الشركة —</option>
           {companies.map((c) => (
-            <option key={c} value={c} />
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
-        </datalist>
+          <option value="__new__">＋ شركة جديدة</option>
+        </select>
+        {companyNewMode && (
+          <input
+            type="text"
+            className="mt-8"
+            value={entry.targetCompany}
+            onChange={(e) => update('targetCompany', e.target.value)}
+            placeholder="اكتب اسم الشركة الجديدة"
+            autoFocus
+          />
+        )}
       </label>
 
       <div className="field">

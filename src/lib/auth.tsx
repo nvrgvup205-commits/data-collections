@@ -28,6 +28,13 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     username: '2222',
     password: '2222',
+    name: 'سعودي تريند',
+    role: 'company',
+    company: 'سعودي تريند',
+  },
+  {
+    username: '3333',
+    password: '3333',
     name: 'شركة نخبة التسويق',
     role: 'company',
     company: 'شركة نخبة التسويق',

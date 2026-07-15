@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AppData, Entry, Section, SECTION_COLORS } from '../types'
+import { AppData, Entry, KNOWN_COMPANIES, Section, SECTION_COLORS } from '../types'
 import { loadData, saveData, uid } from '../storage'
 import { deleteBlob } from '../lib/media'
 import { useAuth } from '../lib/auth'
@@ -28,7 +28,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   }, [data])
 
   const companies = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set<string>(KNOWN_COMPANIES)
     data.entries.forEach((e) => {
       const c = e.targetCompany?.trim()
       if (c) set.add(c)
@@ -259,6 +259,9 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
                   {e.audioNote && <p className="card-line">🎙️ يوجد مقطع صوتي</p>}
+                  <p className="card-line time" dir="rtl">
+                    🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
+                  </p>
                   <div className="card-actions">
                     <button className="btn ghost small" onClick={() => startEdit(e)}>
                       تعديل

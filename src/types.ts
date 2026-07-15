@@ -80,6 +80,9 @@ export const ACTIVITY_TYPES: string[] = [
   'أخرى',
 ]
 
+// Suggested companies always available for selection (even before any report exists).
+export const KNOWN_COMPANIES: string[] = ['سعودي تريند', 'شركة نخبة التسويق']
+
 export const SECTION_COLORS = [
   '#0f766e',
   '#b45309',

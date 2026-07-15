@@ -176,6 +176,9 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
               {e.met === 'yes' && e.meetingNotes && (
                 <p className="card-notes">{e.meetingNotes}</p>
               )}
+              <p className="card-line time">
+                🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
+              </p>
               {e.photos?.length > 1 && (
                 <div className="card-photos">
                   {e.photos.slice(1, 4).map((p) => (
