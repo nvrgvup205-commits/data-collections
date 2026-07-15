@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { Entry, Section } from '../types'
+import { Entry, Section, dealStatusLabel } from '../types'
 import { getBlob, blobToDataUrl } from './media'
 
 export interface ExportMeta {
@@ -59,6 +59,7 @@ export function exportExcel(
     'اسم المدير': e.managerName,
     'رقم الجوال': e.managerPhone,
     'تمت المقابلة؟': e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : '',
+    'تصنيف النتيجة': dealStatusLabel(e.dealStatus),
     'ملخص المقابلة': e.meetingNotes,
     'عدد الصور': e.photos?.length ?? 0,
     'التاريخ': new Date(e.createdAt).toLocaleString('ar-EG'),
@@ -68,7 +69,7 @@ export function exportExcel(
   ws['!cols'] = [
     { wch: 4 }, { wch: 22 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 32 },
     { wch: 22 }, { wch: 20 }, { wch: 18 }, { wch: 16 }, { wch: 12 },
-    { wch: 40 }, { wch: 9 }, { wch: 20 },
+    { wch: 22 }, { wch: 40 }, { wch: 9 }, { wch: 20 },
   ]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'البحث الميداني')
@@ -135,6 +136,7 @@ function buildReportHtml(
           ${row('اسم المدير', e.managerName)}
           ${row('رقم الجوال', e.managerPhone)}
           ${row('تمت المقابلة؟', met)}
+          ${row('تصنيف النتيجة', dealStatusLabel(e.dealStatus))}
           ${row('ملخص المقابلة', e.meetingNotes)}
         </table>
         ${photosBlock}

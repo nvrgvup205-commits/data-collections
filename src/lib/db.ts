@@ -96,11 +96,15 @@ interface PlaceRow {
   custom_activity: string | null
   met: string | null
   meeting_notes: string | null
+  deal_status: string | null
   created_at: string
   updated_at: string
 }
 
 function rowToEntry(r: PlaceRow, photos: PhotoRef[]): Entry {
+  const raw = r.deal_status
+  const dealStatus: Entry['dealStatus'] =
+    raw === 'purchased' || raw === 'rejected' || raw === 'objections' ? raw : ''
   return {
     id: r.id,
     sectionId: r.section_id ?? '',
@@ -115,6 +119,7 @@ function rowToEntry(r: PlaceRow, photos: PhotoRef[]): Entry {
     customActivity: r.custom_activity ?? '',
     met: (r.met as Entry['met']) ?? '',
     meetingNotes: r.meeting_notes ?? '',
+    dealStatus,
     audioNote: '',
     photos,
     targetCompany: r.target_company ?? '',
@@ -171,6 +176,7 @@ export async function savePlace(e: Entry): Promise<void> {
     custom_activity: e.customActivity || null,
     met: e.met || null,
     meeting_notes: e.meetingNotes || null,
+    deal_status: e.dealStatus || null,
     updated_at: new Date().toISOString(),
   }
   const { error } = await db().from('fr_places').upsert(row)

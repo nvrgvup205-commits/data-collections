@@ -29,6 +29,7 @@ export function loadData(): AppData {
           ...e,
           audioNote: e.audioNote ?? '',
           photos: Array.isArray(e.photos) ? e.photos : [],
+          dealStatus: e.dealStatus ?? '',
         }))
         return parsed
       }

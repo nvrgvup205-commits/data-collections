@@ -47,9 +47,31 @@ create table if not exists public.fr_places (
   custom_activity text,
   met text,
   meeting_notes text,
+  -- موقف العميل من الفكرة: purchased | rejected | objections
+  deal_status text check (
+    deal_status is null
+    or deal_status in ('purchased', 'rejected', 'objections')
+  ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Safe re-run: add deal_status if the table already existed without it
+alter table public.fr_places
+  add column if not exists deal_status text;
+
+do $$
+begin
+  alter table public.fr_places
+    drop constraint if exists fr_places_deal_status_check;
+  alter table public.fr_places
+    add constraint fr_places_deal_status_check
+    check (
+      deal_status is null
+      or deal_status in ('purchased', 'rejected', 'objections')
+    );
+exception when others then null;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- 4) Photos metadata (files live in Storage bucket 'fr-place-photos')

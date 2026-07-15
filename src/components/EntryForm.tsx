@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ACTIVITY_TYPES, Entry, PhotoRef, Section } from '../types'
+import { ACTIVITY_TYPES, DEAL_STATUS_OPTIONS, Entry, PhotoRef, Section } from '../types'
 import { reverseGeocode } from '../lib/geo'
 import { deleteBlob } from '../lib/media'
 import { uid } from '../storage'
@@ -35,6 +35,7 @@ function blankEntry(sectionId: string): Entry {
     customActivity: '',
     met: '',
     meetingNotes: '',
+    dealStatus: '',
     audioNote: '',
     photos: [],
     targetCompany: '',
@@ -51,9 +52,10 @@ export default function EntryForm({
   onSave,
   onCancel,
 }: Props) {
-  const [entry, setEntry] = useState<Entry>(
-    initial ?? blankEntry(defaultSectionId),
-  )
+  const [entry, setEntry] = useState<Entry>(() => {
+    if (!initial) return blankEntry(defaultSectionId)
+    return { ...blankEntry(initial.sectionId || defaultSectionId), ...initial, dealStatus: initial.dealStatus ?? '' }
+  })
   const [geoMsg, setGeoMsg] = useState('')
   const [companyNewMode, setCompanyNewMode] = useState<boolean>(
     !!(initial?.targetCompany && !companies.includes(initial.targetCompany)),
@@ -287,6 +289,26 @@ export default function EntryForm({
             />
             لا، لم أقابله
           </label>
+        </div>
+      </div>
+
+      <div className="field">
+        <span>تصنيف نتيجة الزيارة</span>
+        <div className="radio-row deal-status-row">
+          {DEAL_STATUS_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`radio-pill deal-${opt.value} ${entry.dealStatus === opt.value ? 'active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="dealStatus"
+                checked={entry.dealStatus === opt.value}
+                onChange={() => update('dealStatus', opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
         </div>
       </div>
 

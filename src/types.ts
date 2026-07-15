@@ -13,6 +13,20 @@ export interface PhotoRef {
   url?: string // cloud: public URL for display
 }
 
+/** نتيجة الزيارة / موقف العميل من الفكرة */
+export type DealStatus = 'purchased' | 'rejected' | 'objections' | ''
+
+export const DEAL_STATUS_OPTIONS: { value: Exclude<DealStatus, ''>; label: string }[] = [
+  { value: 'purchased', label: 'مشتري بالفعل' },
+  { value: 'rejected', label: 'رافض الفكرة تماما' },
+  { value: 'objections', label: 'عنده اعتراضات يمكن حلها' },
+]
+
+export function dealStatusLabel(status: DealStatus | undefined): string {
+  if (!status) return ''
+  return DEAL_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? ''
+}
+
 export interface Entry {
   id: Id
   sectionId: Id
@@ -27,6 +41,8 @@ export interface Entry {
   customActivity: string
   met: 'yes' | 'no' | ''
   meetingNotes: string
+  /** موقف العميل: مشتري / رافض / اعتراضات قابلة للحل */
+  dealStatus: DealStatus
   audioNote: string
   photos: PhotoRef[]
   targetCompany: string
