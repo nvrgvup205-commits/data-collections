@@ -7,7 +7,7 @@ import {
   VISITED_CLIENT_LABEL,
   dealStatusLabel,
 } from '../types'
-import { exportPdf } from '../lib/exporters'
+import { exportExcel, exportPdf } from '../lib/exporters'
 import { fetchPlaces, fetchSections, subscribePlaces } from '../lib/db'
 import {
   companyShareUrl,
@@ -44,6 +44,7 @@ export default function CompanyPortal({
   const [sectionId, setSectionId] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [busy, setBusy] = useState(false)
+  const [exportMsg, setExportMsg] = useState('')
   const [selected, setSelected] = useState<Entry | null>(null)
   const knownIds = useRef<Set<string> | null>(null)
   const primed = useRef(false)
@@ -160,12 +161,25 @@ export default function CompanyPortal({
   const downloadPdf = async () => {
     if (!visible.length) return
     setBusy(true)
+    setExportMsg('')
     try {
       await exportPdf(visible, sections, { targetCompany: company, researcher: '' })
+      setExportMsg('تم تنزيل PDF')
     } catch (e) {
       alert('تعذّر إنشاء التقرير: ' + (e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  const downloadExcel = () => {
+    if (!visible.length) return
+    setExportMsg('')
+    try {
+      exportExcel(visible, sections, { targetCompany: company, researcher: '' })
+      setExportMsg('تم تنزيل Excel')
+    } catch (e) {
+      alert('تعذّر إنشاء Excel: ' + (e as Error).message)
     }
   }
 
@@ -185,14 +199,18 @@ export default function CompanyPortal({
           </div>
         </div>
         <div className="header-actions">
+          <button className="btn secondary" onClick={downloadExcel} disabled={busy || !visible.length}>
+            تصدير Excel
+          </button>
           <button className="btn secondary" onClick={downloadPdf} disabled={busy || !visible.length}>
-            {busy ? 'جارٍ الإنشاء...' : 'تنزيل التقرير PDF'}
+            {busy ? 'جارٍ الإنشاء...' : 'تصدير PDF'}
           </button>
           <button className="btn ghost" onClick={onExit}>
             {exitLabel}
           </button>
         </div>
       </header>
+      {exportMsg && <p className="hint" style={{ textAlign: 'center' }}>{exportMsg}</p>}
 
       {loading ? (
         <div className="empty">

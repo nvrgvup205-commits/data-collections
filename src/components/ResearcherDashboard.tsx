@@ -26,6 +26,7 @@ import {
 import { telHref, whatsappHref } from '../lib/phone'
 import EntryForm from './EntryForm'
 import ExportPanel from './ExportPanel'
+import CompaniesManager from './CompaniesManager'
 import MediaImage from './MediaImage'
 
 type View = 'list' | 'form'
@@ -46,6 +47,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const [view, setView] = useState<View>('list')
   const [editing, setEditing] = useState<Entry | undefined>(undefined)
   const [showExport, setShowExport] = useState(false)
+  const [showCompanies, setShowCompanies] = useState(false)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -185,6 +187,9 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           </div>
         </div>
         <div className="header-actions">
+          <button className="btn secondary" onClick={() => setShowCompanies(true)}>
+            بوابات الشركات
+          </button>
           <button className="btn secondary" onClick={() => setShowExport(true)}>
             تصدير PDF / Excel
           </button>
@@ -444,6 +449,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           onClose={() => setShowExport(false)}
         />
       )}
+
+      {showCompanies && <CompaniesManager onClose={() => setShowCompanies(false)} />}
 
       <footer className="app-footer">
         <span>البيانات محفوظة في السحابة (Supabase) وتتحدّث لحظيًا.</span>

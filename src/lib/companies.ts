@@ -22,14 +22,16 @@ function now() {
   return Date.now()
 }
 
+/** Canonical company portal link: /#/p/{slug} */
 export function companyShareUrl(slug: string): string {
   if (!slug.trim()) return ''
   const base = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${base}/#/c/${encodeURIComponent(slug.trim())}`
+  return `${base}/#/p/${encodeURIComponent(slug.trim())}`
 }
 
+/** Accept both /#/p/slug (preferred) and legacy /#/c/slug */
 export function parseCompanySlugFromHash(hash: string): string | null {
-  const m = hash.match(/^#\/c\/([^/?#]+)/)
+  const m = hash.match(/^#\/(?:p|c)\/([^/?#]+)/)
   if (!m) return null
   try {
     return decodeURIComponent(m[1])
@@ -117,6 +119,66 @@ async function fetchPublicJson<T>(path: string): Promise<T | null> {
   }
 }
 
+async function upsertCompanyRow(meta: CompanyMeta): Promise<void> {
+  if (!supabase) return
+  try {
+    const { error } = await supabase.from('fr_companies').upsert(
+      {
+        name: meta.name,
+        slug: meta.slug,
+        username: meta.username,
+        password: meta.password,
+        updated_at: new Date(meta.updatedAt).toISOString(),
+      },
+      { onConflict: 'slug' },
+    )
+    if (error) console.warn('fr_companies upsert:', error.message)
+  } catch (e) {
+    console.warn('fr_companies unavailable yet (run schema.sql)', e)
+  }
+}
+
+async function fetchCompanyRowBySlug(slug: string): Promise<CompanyMeta | null> {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase
+      .from('fr_companies')
+      .select('name, slug, username, password, updated_at')
+      .eq('slug', slug)
+      .maybeSingle()
+    if (error || !data) return null
+    return {
+      name: data.name,
+      slug: data.slug,
+      username: data.username,
+      password: data.password,
+      updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : now(),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function fetchCompaniesFromDb(): Promise<CompanyMeta[]> {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase
+      .from('fr_companies')
+      .select('name, slug, username, password, updated_at')
+      .order('name')
+    if (error || !data) return []
+    return data.map((r) => ({
+      name: r.name,
+      slug: r.slug,
+      username: r.username,
+      password: r.password,
+      updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
+    }))
+  } catch {
+    return []
+  }
+}
+
 export async function saveCompanyMeta(input: {
   name: string
   slug: string
@@ -138,6 +200,7 @@ export async function saveCompanyMeta(input: {
     updatedAt: now(),
   }
   upsertLocal(meta)
+  await upsertCompanyRow(meta)
   try {
     await uploadJson(metaPath(slug), meta)
   } catch (e) {
@@ -146,14 +209,69 @@ export async function saveCompanyMeta(input: {
   return meta
 }
 
+export async function updateCompanyCredentials(
+  slug: string,
+  patch: { username?: string; password?: string; name?: string },
+): Promise<CompanyMeta> {
+  const current = (await loadCompanyMeta(slug)) || findCompanyBySlug(slug)
+  if (!current) throw new Error('الشركة غير موجودة')
+  return saveCompanyMeta({
+    name: patch.name?.trim() || current.name,
+    slug: current.slug,
+    username: patch.username ?? current.username,
+    password: patch.password ?? current.password,
+  })
+}
+
 export async function loadCompanyMeta(slug: string): Promise<CompanyMeta | null> {
-  const local = findCompanyBySlug(slug)
-  const remote = await fetchPublicJson<CompanyMeta>(metaPath(slug))
-  if (remote?.slug && remote.name) {
+  const s = slug.trim()
+  // Prefer publicly readable Storage (works without researcher auth).
+  const remote = await fetchPublicJson<CompanyMeta>(metaPath(s))
+  if (remote?.slug && remote.name && remote.username) {
     upsertLocal(remote)
     return remote
   }
-  return local ?? null
+
+  const fromDb = await fetchCompanyRowBySlug(s)
+  if (fromDb) {
+    upsertLocal(fromDb)
+    try {
+      await uploadJson(metaPath(fromDb.slug), fromDb)
+    } catch {
+      /* ignore */
+    }
+    return fromDb
+  }
+
+  const local = findCompanyBySlug(s)
+  if (local) return local
+
+  // Recover from an existing places snapshot that still has credentials.
+  const snap = await fetchPublicJson<{
+    company?: string
+    slug?: string
+    places?: Entry[]
+  }>(placesPath(s))
+  if (snap?.places?.length) {
+    const withCreds = snap.places.find(
+      (p) => (p.slug || '').trim() === s && p.placeUsername && p.placePassword,
+    )
+    if (withCreds || snap.company) {
+      const meta: CompanyMeta = {
+        name: snap.company || withCreds?.targetCompany || s,
+        slug: s,
+        username: withCreds?.placeUsername || '',
+        password: withCreds?.placePassword || '',
+        updatedAt: now(),
+      }
+      if (meta.username && meta.password) {
+        upsertLocal(meta)
+        return meta
+      }
+    }
+  }
+
+  return null
 }
 
 export async function syncCompanyPortalPlaces(
@@ -172,6 +290,8 @@ export async function syncCompanyPortalPlaces(
       updatedAt: now(),
       places,
     })
+    // Keep public meta in sync too (credentials the researcher set).
+    await uploadJson(metaPath(meta.slug), meta)
   } catch (e) {
     console.warn('تعذّر مزامنة تقارير بوابة الشركة', e)
   }
@@ -209,7 +329,10 @@ export async function loginCompanyPortal(
   password: string,
 ): Promise<CompanyMeta> {
   const meta = await loadCompanyMeta(slug)
-  if (!meta) throw new Error('بوابة الشركة غير موجودة')
+  if (!meta) throw new Error('بوابة الشركة غير موجودة — اطلب من الباحث حفظ الشركة مرة أخرى')
+  if (!meta.username || !meta.password) {
+    throw new Error('لم يتم تعيين بيانات الدخول لهذه البوابة بعد')
+  }
   if (meta.username !== username.trim() || meta.password !== password.trim()) {
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة')
   }
@@ -220,7 +343,9 @@ export async function loginCompanyPortal(
 /** Loud multi-beep alert for new reports on the company portal. */
 export function playNewReportAlert() {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     const ctx = new AudioCtx()
     const tones = [880, 1175, 1480, 1175, 880]
     tones.forEach((freq, i) => {

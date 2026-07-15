@@ -101,6 +101,31 @@ create table if not exists public.fr_place_photos (
 );
 
 -- ---------------------------------------------------------------------
+-- 4b) Companies (dedicated portals: slug + credentials set by researcher)
+-- ---------------------------------------------------------------------
+create table if not exists public.fr_companies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null,
+  username text not null,
+  password text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (slug),
+  unique (name)
+);
+
+alter table public.fr_companies enable row level security;
+
+drop policy if exists fr_companies_researcher on public.fr_companies;
+create policy fr_companies_researcher on public.fr_companies
+  for all using (public.fr_user_role() = 'researcher')
+  with check (public.fr_user_role() = 'researcher');
+
+-- Anonymous / company clients read portal files from Storage; this table
+-- is managed by researchers only.
+
+-- ---------------------------------------------------------------------
 -- 5) Helper functions (prefixed to avoid clashing with built-ins)
 -- ---------------------------------------------------------------------
 create or replace function public.fr_user_role() returns text
