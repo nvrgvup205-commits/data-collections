@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Entry, KNOWN_COMPANIES, Section, SECTION_COLORS } from '../types'
+import { Entry, KNOWN_COMPANIES, Section, SECTION_COLORS, dealStatusLabel } from '../types'
 import { useAuth } from '../lib/auth'
 import {
   addSection as addSectionCloud,
@@ -289,6 +289,15 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                       : e.met === 'no'
                         ? '⛔ لم تتم المقابلة'
                         : '➖ المقابلة غير محددة'}
+                  </p>
+                  <p className="card-line">
+                    {e.dealStatus ? (
+                      <span className={`deal-badge deal-${e.dealStatus}`}>
+                        {dealStatusLabel(e.dealStatus)}
+                      </span>
+                    ) : (
+                      <span className="deal-badge unset">بدون تصنيف</span>
+                    )}
                   </p>
                   {e.met === 'yes' && e.meetingNotes && (
                     <p className="card-notes">{e.meetingNotes}</p>
