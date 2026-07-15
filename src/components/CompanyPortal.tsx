@@ -28,7 +28,7 @@ interface Props {
   portalSlug?: string
 }
 
-type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'unset'
+type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'unset' | 'not_met'
 
 export default function CompanyPortal({
   company,
@@ -134,6 +134,7 @@ export default function CompanyPortal({
     let list = companyEntries
     if (sectionId !== 'all') list = list.filter((e) => e.sectionId === sectionId)
     if (statusFilter === 'unset') list = list.filter((e) => !e.dealStatus)
+    else if (statusFilter === 'not_met') list = list.filter((e) => e.met === 'no')
     else if (statusFilter !== 'all') list = list.filter((e) => e.dealStatus === statusFilter)
     const q = search.trim().toLowerCase()
     if (q) {
@@ -142,7 +143,8 @@ export default function CompanyPortal({
           e.placeName.toLowerCase().includes(q) ||
           e.activityType.toLowerCase().includes(q) ||
           e.address.toLowerCase().includes(q) ||
-          dealStatusLabel(e.dealStatus).includes(q),
+          dealStatusLabel(e.dealStatus).includes(q) ||
+          metStatusLabel(e.met).includes(q),
       )
     }
     return list
@@ -153,7 +155,8 @@ export default function CompanyPortal({
     const objections = companyEntries.filter((e) => e.dealStatus === 'objections').length
     const rejected = companyEntries.filter((e) => e.dealStatus === 'rejected').length
     const followUp = companyEntries.filter((e) => e.dealStatus === 'follow_up').length
-    return { total: companyEntries.length, purchased, objections, rejected, followUp }
+    const notMet = companyEntries.filter((e) => e.met === 'no').length
+    return { total: companyEntries.length, purchased, objections, rejected, followUp, notMet }
   }, [companyEntries])
 
   const sectionName = (id: string) => sections.find((s) => s.id === id)?.name ?? '-'
@@ -261,6 +264,14 @@ export default function CompanyPortal({
               <span className="stat-num">{stats.followUp}</span>
               <span className="stat-label">يعاد التواصل / الزيارة</span>
             </button>
+            <button
+              type="button"
+              className={`stat-card muted-stat clickable ${statusFilter === 'not_met' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('not_met')}
+            >
+              <span className="stat-num">{stats.notMet}</span>
+              <span className="stat-label">لم تتم المقابلة</span>
+            </button>
           </section>
 
           <div className="toolbar">
@@ -296,6 +307,7 @@ export default function CompanyPortal({
                   {o.label}
                 </option>
               ))}
+              <option value="not_met">لم تتم المقابلة</option>
               <option value="unset">بدون تصنيف</option>
             </select>
           </div>

@@ -704,6 +704,10 @@ body {
   color: #4338ca;
 }
 
+.stat-card.muted-stat .stat-num {
+  color: #64748b;
+}
+
 .deal-status-row {
   flex-wrap: wrap;
 }

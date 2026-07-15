@@ -31,7 +31,7 @@ import CompaniesManager from './CompaniesManager'
 import MediaImage from './MediaImage'
 
 type View = 'list' | 'form'
-type StatusFilter = 'all' | Exclude<DealStatus, ''>
+type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'not_met'
 
 interface Props {
   onPreviewCompany: (company: string) => void
@@ -91,7 +91,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
     const objections = entries.filter((e) => e.dealStatus === 'objections').length
     const rejected = entries.filter((e) => e.dealStatus === 'rejected').length
     const followUp = entries.filter((e) => e.dealStatus === 'follow_up').length
-    return { total: entries.length, purchased, objections, rejected, followUp }
+    const notMet = entries.filter((e) => e.met === 'no').length
+    return { total: entries.length, purchased, objections, rejected, followUp, notMet }
   }, [entries])
 
   const filteredEntries = useMemo(() => {
@@ -99,7 +100,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
     if (activeSection !== 'all') list = list.filter((e) => e.sectionId === activeSection)
     if (activeCompany !== 'all')
       list = list.filter((e) => (e.targetCompany?.trim() || '') === activeCompany)
-    if (statusFilter !== 'all') list = list.filter((e) => e.dealStatus === statusFilter)
+    if (statusFilter === 'not_met') list = list.filter((e) => e.met === 'no')
+    else if (statusFilter !== 'all') list = list.filter((e) => e.dealStatus === statusFilter)
     const q = search.trim().toLowerCase()
     if (q) {
       list = list.filter(
@@ -108,7 +110,9 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           e.managerName.toLowerCase().includes(q) ||
           e.address.toLowerCase().includes(q) ||
           (e.targetCompany || '').toLowerCase().includes(q) ||
-          (e.slug || '').toLowerCase().includes(q),
+          (e.slug || '').toLowerCase().includes(q) ||
+          metStatusLabel(e.met).includes(q) ||
+          dealStatusLabel(e.dealStatus).includes(q),
       )
     }
     return list
@@ -252,6 +256,14 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
             >
               <span className="stat-num">{statusCounts.followUp}</span>
               <span className="stat-label">يعاد التواصل / الزيارة</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card muted-stat clickable ${statusFilter === 'not_met' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('not_met')}
+            >
+              <span className="stat-num">{statusCounts.notMet}</span>
+              <span className="stat-label">لم تتم المقابلة</span>
             </button>
           </section>
 
