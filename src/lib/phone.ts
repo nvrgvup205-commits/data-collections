@@ -32,14 +32,15 @@ export function slugify(raw: string): string {
     .replace(/^-|-$/g, '')
 }
 
+/** @deprecated use companyShareUrl from companies.ts */
 export function placeShareUrl(slug: string): string {
   if (!slug.trim()) return ''
   const base = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${base}/#/p/${encodeURIComponent(slug.trim())}`
+  return `${base}/#/c/${encodeURIComponent(slug.trim())}`
 }
 
 export function parsePlaceSlugFromHash(hash: string): string | null {
-  const m = hash.match(/^#\/p\/([^/?#]+)/)
+  const m = hash.match(/^#\/(?:p|c)\/([^/?#]+)/)
   if (!m) return null
   try {
     return decodeURIComponent(m[1])

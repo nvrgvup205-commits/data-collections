@@ -8,7 +8,12 @@ import {
 } from '../types'
 import { reverseGeocode } from '../lib/geo'
 import { deleteBlob } from '../lib/media'
-import { placeShareUrl, slugify } from '../lib/phone'
+import {
+  companyShareUrl,
+  findCompanyByName,
+  saveCompanyMeta,
+} from '../lib/companies'
+import { slugify } from '../lib/phone'
 import { uid } from '../storage'
 import InteractiveMap from './InteractiveMap'
 import VoiceInput from './VoiceInput'
@@ -19,7 +24,7 @@ interface Props {
   companies: string[]
   initial?: Entry
   defaultSectionId: string
-  onSave: (entry: Entry) => void
+  onSave: (entry: Entry) => void | Promise<void>
   onCancel: () => void
 }
 
@@ -57,14 +62,17 @@ function blankEntry(sectionId: string): Entry {
 
 function normalizeInitial(initial: Entry | undefined, defaultSectionId: string): Entry {
   if (!initial) return blankEntry(defaultSectionId)
+  const companyMeta = initial.targetCompany
+    ? findCompanyByName(initial.targetCompany)
+    : undefined
   return {
     ...blankEntry(initial.sectionId || defaultSectionId),
     ...initial,
     dealStatus: initial.dealStatus ?? '',
     rejectionReason: initial.rejectionReason ?? '',
-    slug: initial.slug ?? '',
-    placeUsername: initial.placeUsername ?? '',
-    placePassword: initial.placePassword ?? '',
+    slug: companyMeta?.slug || initial.slug || '',
+    placeUsername: companyMeta?.username || initial.placeUsername || '',
+    placePassword: companyMeta?.password || initial.placePassword || '',
   }
 }
 
@@ -79,6 +87,7 @@ export default function EntryForm({
   const [entry, setEntry] = useState<Entry>(() => normalizeInitial(initial, defaultSectionId))
   const [geoMsg, setGeoMsg] = useState('')
   const [copied, setCopied] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [companyNewMode, setCompanyNewMode] = useState<boolean>(
     !!(initial?.targetCompany && !companies.includes(initial.targetCompany)),
   )
@@ -92,6 +101,21 @@ export default function EntryForm({
 
   const update = <K extends keyof Entry>(key: K, value: Entry[K]) => {
     setEntry((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const applyCompanyMeta = (companyName: string) => {
+    const meta = findCompanyByName(companyName)
+    if (meta) {
+      setEntry((prev) => ({
+        ...prev,
+        targetCompany: companyName,
+        slug: meta.slug,
+        placeUsername: meta.username,
+        placePassword: meta.password,
+      }))
+    } else {
+      update('targetCompany', companyName)
+    }
   }
 
   const handleCoords = (lat: number, lng: number) => {
@@ -132,17 +156,42 @@ export default function EntryForm({
     setEntry((prev) => ({ ...prev, audioNote: dataUrl }))
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!entry.placeName.trim()) {
       alert('من فضلك اكتب اسم المكان أولًا.')
       return
     }
-    onSave({
-      ...entry,
-      slug: slugify(entry.slug) || entry.slug.trim(),
-      updatedAt: Date.now(),
-    })
+    if (!entry.targetCompany.trim()) {
+      alert('اختر الشركة المقدَّم إليها التقرير.')
+      return
+    }
+    const slug = slugify(entry.slug) || slugify(entry.targetCompany)
+    if (!slug || !entry.placeUsername.trim() || !entry.placePassword.trim()) {
+      alert('أدخل slug واسم مستخدم وكلمة مرور لإنشاء بوابة الشركة.')
+      return
+    }
+    setSaving(true)
+    try {
+      const meta = await saveCompanyMeta({
+        name: entry.targetCompany.trim(),
+        slug,
+        username: entry.placeUsername,
+        password: entry.placePassword,
+      })
+      await onSave({
+        ...entry,
+        targetCompany: meta.name,
+        slug: meta.slug,
+        placeUsername: meta.username,
+        placePassword: meta.password,
+        updatedAt: Date.now(),
+      })
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const appendMeetingNote = (text: string) => {
@@ -152,7 +201,7 @@ export default function EntryForm({
     }))
   }
 
-  const shareUrl = placeShareUrl(entry.slug)
+  const shareUrl = companyShareUrl(slugify(entry.slug) || entry.slug)
   const copyShareLink = async () => {
     if (!shareUrl) return
     try {
@@ -164,7 +213,6 @@ export default function EntryForm({
     }
   }
 
-  // Unique section names in the form dropdown (dedupe display).
   const uniqueSections = (() => {
     const seen = new Set<string>()
     return sections.filter((s) => {
@@ -176,7 +224,7 @@ export default function EntryForm({
   })()
 
   return (
-    <form className="entry-form" onSubmit={submit}>
+    <form className="entry-form" onSubmit={(e) => void submit(e)}>
       <div className="form-grid">
         <label className="field">
           <span>القسم</span>
@@ -210,10 +258,16 @@ export default function EntryForm({
           onChange={(e) => {
             if (e.target.value === '__new__') {
               setCompanyNewMode(true)
-              update('targetCompany', '')
+              setEntry((prev) => ({
+                ...prev,
+                targetCompany: '',
+                slug: '',
+                placeUsername: '',
+                placePassword: '',
+              }))
             } else {
               setCompanyNewMode(false)
-              update('targetCompany', e.target.value)
+              applyCompanyMeta(e.target.value)
             }
           }}
         >
@@ -230,62 +284,71 @@ export default function EntryForm({
             type="text"
             className="mt-8"
             value={entry.targetCompany}
-            onChange={(e) => update('targetCompany', e.target.value)}
+            onChange={(e) => {
+              const name = e.target.value
+              setEntry((prev) => ({
+                ...prev,
+                targetCompany: name,
+                slug: prev.slug || slugify(name),
+              }))
+            }}
             placeholder="اكتب اسم الشركة الجديدة"
             autoFocus
           />
         )}
       </label>
 
-      <div className="form-grid">
-        <label className="field">
-          <span>Slug (رابط المتابعة للشركة)</span>
-          <input
-            type="text"
-            dir="ltr"
-            value={entry.slug}
-            onChange={(e) => update('slug', e.target.value)}
-            onBlur={() => {
-              const cleaned = slugify(entry.slug)
-              if (cleaned && cleaned !== entry.slug) update('slug', cleaned)
-            }}
-            placeholder="example-place"
-          />
-        </label>
-        <label className="field">
-          <span>اسم المستخدم</span>
-          <input
-            type="text"
-            dir="ltr"
-            autoComplete="off"
-            value={entry.placeUsername}
-            onChange={(e) => update('placeUsername', e.target.value)}
-            placeholder="username"
-          />
-        </label>
-        <label className="field">
-          <span>كلمة المرور</span>
-          <input
-            type="text"
-            dir="ltr"
-            autoComplete="off"
-            value={entry.placePassword}
-            onChange={(e) => update('placePassword', e.target.value)}
-            placeholder="password"
-          />
-        </label>
-      </div>
+      {entry.targetCompany.trim() && (
+        <>
+          <div className="form-grid">
+            <label className="field">
+              <span>Slug رابط بوابة الشركة</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={entry.slug}
+                onChange={(e) => update('slug', e.target.value)}
+                onBlur={() => {
+                  const cleaned = slugify(entry.slug)
+                  if (cleaned && cleaned !== entry.slug) update('slug', cleaned)
+                }}
+                placeholder="hanqoul"
+              />
+            </label>
+            <label className="field">
+              <span>مستخدم بوابة الشركة</span>
+              <input
+                type="text"
+                dir="ltr"
+                autoComplete="off"
+                value={entry.placeUsername}
+                onChange={(e) => update('placeUsername', e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>كلمة مرور بوابة الشركة</span>
+              <input
+                type="text"
+                dir="ltr"
+                autoComplete="off"
+                value={entry.placePassword}
+                onChange={(e) => update('placePassword', e.target.value)}
+              />
+            </label>
+          </div>
 
-      {shareUrl && (
-        <div className="slug-share">
-          <span className="slug-share-label">رابط إرساله للشركة للمتابعة:</span>
-          <code className="slug-share-url" dir="ltr">
-            {shareUrl}
-          </code>
-          <button type="button" className="btn secondary small" onClick={() => void copyShareLink()}>
-            {copied ? 'تم النسخ ✓' : 'نسخ الرابط'}
-          </button>
-        </div>
+          {shareUrl && (
+            <div className="slug-share">
+              <span className="slug-share-label">رابط بوابة الشركة (أرسله لهم للمتابعة لايف):</span>
+              <code className="slug-share-url" dir="ltr">
+                {shareUrl}
+              </code>
+              <button type="button" className="btn secondary small" onClick={() => void copyShareLink()}>
+                {copied ? 'تم النسخ ✓' : 'نسخ الرابط'}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <div className="field">
@@ -450,8 +513,8 @@ export default function EntryForm({
       )}
 
       <div className="form-actions">
-        <button type="submit" className="btn primary">
-          حفظ البيانات
+        <button type="submit" className="btn primary" disabled={saving}>
+          {saving ? 'جارٍ الحفظ...' : 'حفظ البيانات'}
         </button>
         <button type="button" className="btn ghost" onClick={onCancel}>
           إلغاء

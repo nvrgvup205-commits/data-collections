@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   DealStatus,
   Entry,
@@ -17,7 +17,13 @@ import {
   savePlace,
   subscribePlaces,
 } from '../lib/db'
-import { placeShareUrl, telHref, whatsappHref } from '../lib/phone'
+import {
+  companyShareUrl,
+  findCompanyByName,
+  listLocalCompanies,
+  syncCompanyPortalPlaces,
+} from '../lib/companies'
+import { telHref, whatsappHref } from '../lib/phone'
 import EntryForm from './EntryForm'
 import ExportPanel from './ExportPanel'
 import MediaImage from './MediaImage'
@@ -27,10 +33,9 @@ type StatusFilter = 'all' | Exclude<DealStatus, ''>
 
 interface Props {
   onPreviewCompany: (company: string) => void
-  highlightSlug?: string | null
 }
 
-export default function ResearcherDashboard({ onPreviewCompany, highlightSlug }: Props) {
+export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const { user, logout } = useAuth()
   const [sections, setSections] = useState<Section[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
@@ -42,11 +47,6 @@ export default function ResearcherDashboard({ onPreviewCompany, highlightSlug }:
   const [editing, setEditing] = useState<Entry | undefined>(undefined)
   const [showExport, setShowExport] = useState(false)
   const [search, setSearch] = useState('')
-
-  const refreshEntries = useCallback(async () => {
-    const p = await fetchPlaces()
-    setEntries(p)
-  }, [])
 
   useEffect(() => {
     let active = true
@@ -73,17 +73,9 @@ export default function ResearcherDashboard({ onPreviewCompany, highlightSlug }:
     }
   }, [])
 
-  useEffect(() => {
-    if (!highlightSlug || loading) return
-    const match = entries.find((e) => e.slug.trim() === highlightSlug.trim())
-    if (match) {
-      setEditing(match)
-      setView('form')
-    }
-  }, [highlightSlug, loading, entries])
-
   const companies = useMemo(() => {
     const set = new Set<string>(KNOWN_COMPANIES)
+    for (const c of listLocalCompanies()) set.add(c.name)
     entries.forEach((e) => {
       const c = e.targetCompany?.trim()
       if (c) set.add(c)
@@ -132,7 +124,11 @@ export default function ResearcherDashboard({ onPreviewCompany, highlightSlug }:
   const saveEntry = async (entry: Entry) => {
     try {
       await savePlace(entry)
-      await refreshEntries()
+      const latest = await fetchPlaces()
+      setEntries(latest)
+      if (entry.targetCompany.trim()) {
+        await syncCompanyPortalPlaces(entry.targetCompany, latest)
+      }
     } catch (e) {
       alert('تعذّر حفظ التقرير: ' + (e as Error).message)
       return
@@ -146,7 +142,11 @@ export default function ResearcherDashboard({ onPreviewCompany, highlightSlug }:
     const target = entries.find((e) => e.id === id)
     try {
       await deletePlace(id, (target?.photos ?? []).map((p) => p.id))
-      await refreshEntries()
+      const latest = await fetchPlaces()
+      setEntries(latest)
+      if (target?.targetCompany?.trim()) {
+        await syncCompanyPortalPlaces(target.targetCompany, latest)
+      }
     } catch (e) {
       alert('تعذّر الحذف: ' + (e as Error).message)
     }
@@ -390,11 +390,15 @@ export default function ResearcherDashboard({ onPreviewCompany, highlightSlug }:
                   {e.dealStatus === 'rejected' && e.rejectionReason && (
                     <p className="card-notes">سبب الرفض: {e.rejectionReason}</p>
                   )}
-                  {e.slug && (
-                    <p className="card-line slug-line" dir="ltr">
-                      🔗 {placeShareUrl(e.slug)}
-                    </p>
-                  )}
+                  {(() => {
+                    const meta = findCompanyByName(e.targetCompany)
+                    const link = meta ? companyShareUrl(meta.slug) : ''
+                    return link ? (
+                      <p className="card-line slug-line" dir="ltr">
+                        🔗 بوابة الشركة: {link}
+                      </p>
+                    ) : null
+                  })()}
                   {e.met === 'yes' && e.meetingNotes && (
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   DEAL_STATUS_OPTIONS,
   DealStatus,
@@ -9,7 +9,12 @@ import {
 } from '../types'
 import { exportPdf } from '../lib/exporters'
 import { fetchPlaces, fetchSections, subscribePlaces } from '../lib/db'
-import { placeShareUrl, telHref, whatsappHref } from '../lib/phone'
+import {
+  companyShareUrl,
+  fetchCompanyPortalPlaces,
+  playNewReportAlert,
+} from '../lib/companies'
+import { telHref, whatsappHref } from '../lib/phone'
 import MediaImage from './MediaImage'
 
 interface Props {
@@ -17,7 +22,9 @@ interface Props {
   title: string
   onExit: () => void
   exitLabel: string
-  highlightSlug?: string | null
+  /** Public company portal: reads snapshot (no researcher session required). */
+  publicMode?: boolean
+  portalSlug?: string
 }
 
 type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'unset'
@@ -27,7 +34,8 @@ export default function CompanyPortal({
   title,
   onExit,
   exitLabel,
-  highlightSlug,
+  publicMode = false,
+  portalSlug,
 }: Props) {
   const [entries, setEntries] = useState<Entry[]>([])
   const [sections, setSections] = useState<Section[]>([])
@@ -37,15 +45,46 @@ export default function CompanyPortal({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [busy, setBusy] = useState(false)
   const [selected, setSelected] = useState<Entry | null>(null)
+  const knownIds = useRef<Set<string> | null>(null)
+  const primed = useRef(false)
 
   useEffect(() => {
     let active = true
+    knownIds.current = null
+    primed.current = false
+
+    const applyPlaces = (p: Entry[]) => {
+      if (!active) return
+      const forCompany = publicMode
+        ? p
+        : p.filter((e) => (e.targetCompany?.trim() || '') === company)
+
+      if (!primed.current) {
+        knownIds.current = new Set(forCompany.map((e) => e.id))
+        primed.current = true
+      } else if (knownIds.current) {
+        const fresh = forCompany.filter((e) => !knownIds.current!.has(e.id))
+        if (fresh.length) {
+          playNewReportAlert()
+          for (const e of fresh) knownIds.current.add(e.id)
+        }
+        knownIds.current = new Set(forCompany.map((e) => e.id))
+      }
+      setEntries(p)
+    }
+
     const load = async () => {
       try {
-        const [p, s] = await Promise.all([fetchPlaces(), fetchSections()])
-        if (active) {
-          setEntries(p)
-          setSections(s)
+        if (publicMode && portalSlug) {
+          const p = await fetchCompanyPortalPlaces(portalSlug)
+          applyPlaces(p)
+          setSections([])
+        } else {
+          const [p, s] = await Promise.all([fetchPlaces(), fetchSections()])
+          if (active) {
+            applyPlaces(p)
+            setSections(s)
+          }
         }
       } catch (e) {
         console.error(e)
@@ -53,29 +92,36 @@ export default function CompanyPortal({
         if (active) setLoading(false)
       }
     }
+
     load()
+
+    if (publicMode && portalSlug) {
+      const timer = window.setInterval(() => {
+        fetchCompanyPortalPlaces(portalSlug)
+          .then((p) => applyPlaces(p))
+          .catch(() => undefined)
+      }, 4000)
+      return () => {
+        active = false
+        window.clearInterval(timer)
+      }
+    }
+
     const unsub = subscribePlaces(() => {
-      fetchPlaces().then((p) => active && setEntries(p)).catch(() => undefined)
+      fetchPlaces().then((p) => applyPlaces(p)).catch(() => undefined)
     })
     return () => {
       active = false
       unsub()
     }
-  }, [])
+  }, [company, publicMode, portalSlug])
 
-  const companyEntries = useMemo(
-    () =>
-      entries
-        .filter((e) => (e.targetCompany?.trim() || '') === company)
-        .sort((a, b) => b.updatedAt - a.updatedAt),
-    [entries, company],
-  )
-
-  useEffect(() => {
-    if (!highlightSlug || loading) return
-    const match = companyEntries.find((e) => e.slug.trim() === highlightSlug.trim())
-    if (match) setSelected(match)
-  }, [highlightSlug, loading, companyEntries])
+  const companyEntries = useMemo(() => {
+    const list = publicMode
+      ? entries
+      : entries.filter((e) => (e.targetCompany?.trim() || '') === company)
+    return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
+  }, [entries, company, publicMode])
 
   const usedSections = useMemo(() => {
     const ids = new Set(companyEntries.map((e) => e.sectionId))
@@ -94,8 +140,7 @@ export default function CompanyPortal({
           e.placeName.toLowerCase().includes(q) ||
           e.activityType.toLowerCase().includes(q) ||
           e.address.toLowerCase().includes(q) ||
-          dealStatusLabel(e.dealStatus).includes(q) ||
-          (e.slug || '').toLowerCase().includes(q),
+          dealStatusLabel(e.dealStatus).includes(q),
       )
     }
     return list
@@ -136,7 +181,7 @@ export default function CompanyPortal({
           <span className="portal-logo">{(title || 'ش').slice(0, 1)}</span>
           <div>
             <h1>{title}</h1>
-            <p>بوابة التقارير الميدانية — تحديث لحظي</p>
+            <p>بوابة التقارير الميدانية — تحديث لحظي{publicMode ? ' 🔔' : ''}</p>
           </div>
         </div>
         <div className="header-actions">
@@ -198,18 +243,20 @@ export default function CompanyPortal({
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ابحث في التقارير..."
             />
-            <select
-              className="company-filter"
-              value={sectionId}
-              onChange={(e) => setSectionId(e.target.value)}
-            >
-              <option value="all">كل الأقسام</option>
-              {usedSections.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+            {usedSections.length > 0 && (
+              <select
+                className="company-filter"
+                value={sectionId}
+                onChange={(e) => setSectionId(e.target.value)}
+              >
+                <option value="all">كل الأقسام</option>
+                {usedSections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               className="company-filter"
               value={statusFilter}
@@ -234,7 +281,7 @@ export default function CompanyPortal({
             <div className="cards">
               {visible.map((e) => (
                 <article
-                  className={`card report-card clickable ${highlightSlug && e.slug === highlightSlug ? 'highlighted' : ''}`}
+                  className="card report-card clickable"
                   key={e.id}
                   onClick={() => setSelected(e)}
                   onKeyDown={(ev) => {
@@ -353,24 +400,12 @@ export default function CompanyPortal({
                   <dd>{selected.addressNotes}</dd>
                 </div>
               )}
-              <div>
-                <dt>Slug</dt>
-                <dd dir="ltr">{selected.slug || '—'}</dd>
-              </div>
-              {selected.slug && (
+              {portalSlug && (
                 <div className="detail-full">
-                  <dt>رابط المتابعة</dt>
-                  <dd dir="ltr">{placeShareUrl(selected.slug)}</dd>
+                  <dt>رابط بوابة الشركة</dt>
+                  <dd dir="ltr">{companyShareUrl(portalSlug)}</dd>
                 </div>
               )}
-              <div>
-                <dt>اسم المستخدم</dt>
-                <dd dir="ltr">{selected.placeUsername || '—'}</dd>
-              </div>
-              <div>
-                <dt>كلمة المرور</dt>
-                <dd dir="ltr">{selected.placePassword || '—'}</dd>
-              </div>
               {selected.dealStatus === 'rejected' && (
                 <div className="detail-full">
                   <dt>أسباب الرفض</dt>
