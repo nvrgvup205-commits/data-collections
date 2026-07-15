@@ -20,12 +20,22 @@ Standard scripts are defined in `package.json` (do not duplicate them here):
   dashboard) and `company` (read-only portal showing reports where `targetCompany` = their company).
 - **Demo mode** (when Supabase env is NOT set): built-in accounts `1111/1111` (researcher) and
   `2222/2222` (company → "شركة نخبة التسويق"). Session persists in `localStorage`.
-- **Supabase**: configured via `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (build-time env; the
-  anon key is public). If present, `src/lib/supabase.ts` enables it and auth uses
-  `signInWithPassword` (username is mapped to `<username>@demo.local`), reading role/company from a
-  `profiles` table. Run `supabase/schema.sql` in the Supabase SQL editor (tables + RLS + storage bucket).
-  NOTE: currently Supabase powers AUTH only; the places/photos DATA layer still uses local storage
-  and is pending migration to Supabase tables/Storage.
+- **Supabase (ACTIVE, cloud backend)**: `src/lib/supabase.ts` ships public project defaults
+  (URL + anon key), so the deployed app runs against Supabase without needing Cloudflare env vars.
+  Override via `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` if needed.
+  - Auth: `signInWithPassword`, username mapped to `<username>@example.com`; role/company read from
+    `fr_profiles`. Demo users: `1111/111111` (researcher), `2222/222222` (سعودي تريند),
+    `3333/333333` (نخبة التسويق). Supabase enforces a 6-char min password.
+  - Data layer: `src/lib/db.ts` handles sections/places/photos in Supabase (tables `fr_*`, all
+    prefixed to coexist with the project's other app "مينو مطعم"). Photos upload to the public
+    Storage bucket `fr-place-photos`; `PhotoRef.url` holds the public URL.
+  - Realtime: `subscribePlaces()` listens to `fr_places`/`fr_place_photos` changes so the company
+    portal updates live.
+  - RLS: researchers have full access; a company user sees only rows where `target_company` equals
+    their `company_name`. Security relies on RLS (the anon key is intentionally public).
+  - Schema: `supabase/schema.sql` (safe to re-run; `fr_`-prefixed). Email confirmation must be OFF
+    (Auth → Providers → Email) for programmatic user creation.
+  - Audio notes are NOT synced to the cloud (local/IndexedDB only in this version).
 
 ### Data & media storage
 
