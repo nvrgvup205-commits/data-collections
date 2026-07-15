@@ -29,7 +29,32 @@ export function loadData(): AppData {
           ...e,
           audioNote: e.audioNote ?? '',
           photos: Array.isArray(e.photos) ? e.photos : [],
+          dealStatus: e.dealStatus ?? '',
+          rejectionReason: e.rejectionReason ?? '',
+          slug: e.slug ?? '',
+          placeUsername: e.placeUsername ?? '',
+          placePassword: e.placePassword ?? '',
         }))
+        // Collapse duplicate section names from older local data.
+        const seen = new Map<string, string>()
+        const keepIds = new Set<string>()
+        const remapped = new Map<string, string>()
+        for (const s of parsed.sections) {
+          const key = s.name.trim()
+          const first = seen.get(key)
+          if (first) remapped.set(s.id, first)
+          else {
+            seen.set(key, s.id)
+            keepIds.add(s.id)
+          }
+        }
+        if (remapped.size) {
+          parsed.sections = parsed.sections.filter((s) => keepIds.has(s.id))
+          parsed.entries = parsed.entries.map((e) => ({
+            ...e,
+            sectionId: remapped.get(e.sectionId) ?? e.sectionId,
+          }))
+        }
         return parsed
       }
     }

@@ -1,4 +1,4 @@
-import { Entry, PhotoRef, Section, SECTION_COLORS } from '../types'
+import { DealStatus, Entry, PhotoRef, Section, SECTION_COLORS } from '../types'
 import { supabase, PHOTO_BUCKET } from './supabase'
 import { uid } from '../storage'
 
@@ -29,17 +29,54 @@ export async function fetchSections(): Promise<Section[]> {
   }))
 }
 
+/** Merge sections that share the same name; reassign places to the kept section. */
+export async function dedupeSectionsByName(sections: Section[]): Promise<Section[]> {
+  const byName = new Map<string, Section[]>()
+  for (const s of sections) {
+    const key = s.name.trim()
+    const list = byName.get(key) ?? []
+    list.push(s)
+    byName.set(key, list)
+  }
+
+  const keep: Section[] = []
+  const remaps: { from: string; to: string }[] = []
+
+  for (const [, group] of byName) {
+    const sorted = [...group].sort((a, b) => a.createdAt - b.createdAt)
+    const primary = sorted[0]
+    keep.push(primary)
+    for (const dup of sorted.slice(1)) {
+      remaps.push({ from: dup.id, to: primary.id })
+    }
+  }
+
+  for (const { from, to } of remaps) {
+    await db().from('fr_places').update({ section_id: to }).eq('section_id', from)
+    await db().from('fr_sections').delete().eq('id', from)
+  }
+
+  return keep.sort((a, b) => a.createdAt - b.createdAt)
+}
+
 export async function ensureDefaultSections(): Promise<Section[]> {
-  const existing = await fetchSections()
-  if (existing.length) return existing
+  let existing = await fetchSections()
+  if (existing.length) {
+    // Collapse accidental duplicates (e.g. مطاعم وكافيهات repeated).
+    const names = new Set(existing.map((s) => s.name.trim()))
+    if (names.size < existing.length) {
+      existing = await dedupeSectionsByName(existing)
+    }
+    return existing
+  }
   const defaults = [
     { name: 'مطاعم وكافيهات', color: SECTION_COLORS[0] },
     { name: 'شركات', color: SECTION_COLORS[1] },
   ]
   const { data, error } = await db().from('fr_sections').insert(defaults).select()
   if (error) {
-    // Another client may have seeded concurrently; re-read.
-    return fetchSections()
+    // Another client may have seeded concurrently; re-read + dedupe.
+    return dedupeSectionsByName(await fetchSections())
   }
   return (data ?? []).map((r) => ({
     id: r.id,
@@ -50,9 +87,14 @@ export async function ensureDefaultSections(): Promise<Section[]> {
 }
 
 export async function addSection(name: string, color: string): Promise<Section> {
+  const trimmed = name.trim()
+  const existing = await fetchSections()
+  const found = existing.find((s) => s.name.trim() === trimmed)
+  if (found) return found
+
   const { data, error } = await db()
     .from('fr_sections')
-    .insert({ name, color })
+    .insert({ name: trimmed, color })
     .select()
     .single()
   if (error) throw error
@@ -96,8 +138,17 @@ interface PlaceRow {
   custom_activity: string | null
   met: string | null
   meeting_notes: string | null
+  deal_status: string | null
+  rejection_reason: string | null
+  slug: string | null
+  place_username: string | null
+  place_password: string | null
   created_at: string
   updated_at: string
+}
+
+function parseDealStatus(raw: string | null | undefined): DealStatus {
+  return raw === 'purchased' || raw === 'rejected' || raw === 'objections' ? raw : ''
 }
 
 function rowToEntry(r: PlaceRow, photos: PhotoRef[]): Entry {
@@ -115,6 +166,11 @@ function rowToEntry(r: PlaceRow, photos: PhotoRef[]): Entry {
     customActivity: r.custom_activity ?? '',
     met: (r.met as Entry['met']) ?? '',
     meetingNotes: r.meeting_notes ?? '',
+    dealStatus: parseDealStatus(r.deal_status),
+    rejectionReason: r.rejection_reason ?? '',
+    slug: r.slug ?? '',
+    placeUsername: r.place_username ?? '',
+    placePassword: r.place_password ?? '',
     audioNote: '',
     photos,
     targetCompany: r.target_company ?? '',
@@ -155,6 +211,7 @@ export async function fetchPlaces(): Promise<Entry[]> {
 
 export async function savePlace(e: Entry): Promise<void> {
   const researcherId = await currentUserId()
+  const slug = e.slug.trim()
   const row = {
     id: e.id,
     researcher_id: researcherId ?? null,
@@ -171,6 +228,11 @@ export async function savePlace(e: Entry): Promise<void> {
     custom_activity: e.customActivity || null,
     met: e.met || null,
     meeting_notes: e.meetingNotes || null,
+    deal_status: e.dealStatus || null,
+    rejection_reason: e.dealStatus === 'rejected' ? e.rejectionReason || null : null,
+    slug: slug || null,
+    place_username: e.placeUsername || null,
+    place_password: e.placePassword || null,
     updated_at: new Date().toISOString(),
   }
   const { error } = await db().from('fr_places').upsert(row)

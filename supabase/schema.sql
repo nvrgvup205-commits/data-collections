@@ -47,9 +47,48 @@ create table if not exists public.fr_places (
   custom_activity text,
   met text,
   meeting_notes text,
+  -- موقف العميل من الفكرة: purchased | rejected | objections
+  deal_status text check (
+    deal_status is null
+    or deal_status in ('purchased', 'rejected', 'objections')
+  ),
+  rejection_reason text,
+  slug text,
+  place_username text,
+  place_password text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Safe re-run: add new columns if the table already existed without them
+alter table public.fr_places
+  add column if not exists deal_status text;
+alter table public.fr_places
+  add column if not exists rejection_reason text;
+alter table public.fr_places
+  add column if not exists slug text;
+alter table public.fr_places
+  add column if not exists place_username text;
+alter table public.fr_places
+  add column if not exists place_password text;
+
+do $$
+begin
+  alter table public.fr_places
+    drop constraint if exists fr_places_deal_status_check;
+  alter table public.fr_places
+    add constraint fr_places_deal_status_check
+    check (
+      deal_status is null
+      or deal_status in ('purchased', 'rejected', 'objections')
+    );
+exception when others then null;
+end $$;
+
+-- Unique slug when set (allows multiple NULLs / empty)
+create unique index if not exists fr_places_slug_unique
+  on public.fr_places (slug)
+  where slug is not null and slug <> '';
 
 -- ---------------------------------------------------------------------
 -- 4) Photos metadata (files live in Storage bucket 'fr-place-photos')

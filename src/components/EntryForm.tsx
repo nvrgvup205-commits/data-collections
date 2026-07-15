@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { ACTIVITY_TYPES, Entry, PhotoRef, Section } from '../types'
+import {
+  ACTIVITY_TYPES,
+  DEAL_STATUS_OPTIONS,
+  Entry,
+  PhotoRef,
+  Section,
+} from '../types'
 import { reverseGeocode } from '../lib/geo'
 import { deleteBlob } from '../lib/media'
+import { placeShareUrl, slugify } from '../lib/phone'
 import { uid } from '../storage'
 import InteractiveMap from './InteractiveMap'
 import VoiceInput from './VoiceInput'
@@ -35,11 +42,29 @@ function blankEntry(sectionId: string): Entry {
     customActivity: '',
     met: '',
     meetingNotes: '',
+    dealStatus: '',
+    rejectionReason: '',
+    slug: '',
+    placeUsername: '',
+    placePassword: '',
     audioNote: '',
     photos: [],
     targetCompany: '',
     createdAt: now,
     updatedAt: now,
+  }
+}
+
+function normalizeInitial(initial: Entry | undefined, defaultSectionId: string): Entry {
+  if (!initial) return blankEntry(defaultSectionId)
+  return {
+    ...blankEntry(initial.sectionId || defaultSectionId),
+    ...initial,
+    dealStatus: initial.dealStatus ?? '',
+    rejectionReason: initial.rejectionReason ?? '',
+    slug: initial.slug ?? '',
+    placeUsername: initial.placeUsername ?? '',
+    placePassword: initial.placePassword ?? '',
   }
 }
 
@@ -51,10 +76,9 @@ export default function EntryForm({
   onSave,
   onCancel,
 }: Props) {
-  const [entry, setEntry] = useState<Entry>(
-    initial ?? blankEntry(defaultSectionId),
-  )
+  const [entry, setEntry] = useState<Entry>(() => normalizeInitial(initial, defaultSectionId))
   const [geoMsg, setGeoMsg] = useState('')
+  const [copied, setCopied] = useState(false)
   const [companyNewMode, setCompanyNewMode] = useState<boolean>(
     !!(initial?.targetCompany && !companies.includes(initial.targetCompany)),
   )
@@ -114,7 +138,11 @@ export default function EntryForm({
       alert('من فضلك اكتب اسم المكان أولًا.')
       return
     }
-    onSave({ ...entry, updatedAt: Date.now() })
+    onSave({
+      ...entry,
+      slug: slugify(entry.slug) || entry.slug.trim(),
+      updatedAt: Date.now(),
+    })
   }
 
   const appendMeetingNote = (text: string) => {
@@ -123,6 +151,29 @@ export default function EntryForm({
       meetingNotes: prev.meetingNotes ? prev.meetingNotes + ' ' + text : text,
     }))
   }
+
+  const shareUrl = placeShareUrl(entry.slug)
+  const copyShareLink = async () => {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      prompt('انسخ الرابط:', shareUrl)
+    }
+  }
+
+  // Unique section names in the form dropdown (dedupe display).
+  const uniqueSections = (() => {
+    const seen = new Set<string>()
+    return sections.filter((s) => {
+      const key = s.name.trim()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  })()
 
   return (
     <form className="entry-form" onSubmit={submit}>
@@ -133,7 +184,7 @@ export default function EntryForm({
             value={entry.sectionId}
             onChange={(e) => update('sectionId', e.target.value)}
           >
-            {sections.map((s) => (
+            {uniqueSections.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
@@ -185,6 +236,57 @@ export default function EntryForm({
           />
         )}
       </label>
+
+      <div className="form-grid">
+        <label className="field">
+          <span>Slug (رابط المتابعة للشركة)</span>
+          <input
+            type="text"
+            dir="ltr"
+            value={entry.slug}
+            onChange={(e) => update('slug', e.target.value)}
+            onBlur={() => {
+              const cleaned = slugify(entry.slug)
+              if (cleaned && cleaned !== entry.slug) update('slug', cleaned)
+            }}
+            placeholder="example-place"
+          />
+        </label>
+        <label className="field">
+          <span>اسم المستخدم</span>
+          <input
+            type="text"
+            dir="ltr"
+            autoComplete="off"
+            value={entry.placeUsername}
+            onChange={(e) => update('placeUsername', e.target.value)}
+            placeholder="username"
+          />
+        </label>
+        <label className="field">
+          <span>كلمة المرور</span>
+          <input
+            type="text"
+            dir="ltr"
+            autoComplete="off"
+            value={entry.placePassword}
+            onChange={(e) => update('placePassword', e.target.value)}
+            placeholder="password"
+          />
+        </label>
+      </div>
+
+      {shareUrl && (
+        <div className="slug-share">
+          <span className="slug-share-label">رابط إرساله للشركة للمتابعة:</span>
+          <code className="slug-share-url" dir="ltr">
+            {shareUrl}
+          </code>
+          <button type="button" className="btn secondary small" onClick={() => void copyShareLink()}>
+            {copied ? 'تم النسخ ✓' : 'نسخ الرابط'}
+          </button>
+        </div>
+      )}
 
       <div className="field">
         <span>صورة مدخل المكان (يظهر عليها وقت وتاريخ التصوير)</span>
@@ -289,6 +391,38 @@ export default function EntryForm({
           </label>
         </div>
       </div>
+
+      <div className="field">
+        <span>تصنيف نتيجة الزيارة</span>
+        <div className="radio-row deal-status-row">
+          {DEAL_STATUS_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`radio-pill deal-${opt.value} ${entry.dealStatus === opt.value ? 'active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="dealStatus"
+                checked={entry.dealStatus === opt.value}
+                onChange={() => update('dealStatus', opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {entry.dealStatus === 'rejected' && (
+        <label className="field">
+          <span>أسباب الرفض</span>
+          <textarea
+            rows={3}
+            value={entry.rejectionReason}
+            onChange={(e) => update('rejectionReason', e.target.value)}
+            placeholder="اكتب أسباب رفض الفكرة..."
+          />
+        </label>
+      )}
 
       {entry.met === 'yes' && (
         <div className="field">

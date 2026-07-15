@@ -13,6 +13,23 @@ export interface PhotoRef {
   url?: string // cloud: public URL for display
 }
 
+/** نتيجة الزيارة / موقف العميل من الفكرة */
+export type DealStatus = 'purchased' | 'rejected' | 'objections' | ''
+
+export const DEAL_STATUS_OPTIONS: { value: Exclude<DealStatus, ''>; label: string }[] = [
+  { value: 'purchased', label: 'مشتري بالفعل' },
+  { value: 'objections', label: 'عنده اعتراضات يمكن حلها' },
+  { value: 'rejected', label: 'رافض الفكرة تماما' },
+]
+
+export function dealStatusLabel(status: DealStatus | undefined): string {
+  if (!status) return ''
+  return DEAL_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? ''
+}
+
+/** تسمية العميل بعد الزيارة الميدانية */
+export const VISITED_CLIENT_LABEL = 'عميل تمت زيارته'
+
 export interface Entry {
   id: Id
   sectionId: Id
@@ -27,6 +44,15 @@ export interface Entry {
   customActivity: string
   met: 'yes' | 'no' | ''
   meetingNotes: string
+  /** موقف العميل: مشتري / اعتراضات قابلة للحل / رافض */
+  dealStatus: DealStatus
+  /** أسباب الرفض (عند اختيار رافض الفكرة تماما) */
+  rejectionReason: string
+  /** رابط تتبع مختصر يُرسل للشركة */
+  slug: string
+  /** بيانات دخول المكان (للشركة) */
+  placeUsername: string
+  placePassword: string
   audioNote: string
   photos: PhotoRef[]
   targetCompany: string

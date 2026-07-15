@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Entry, Section } from '../types'
+import {
+  DEAL_STATUS_OPTIONS,
+  DealStatus,
+  Entry,
+  Section,
+  VISITED_CLIENT_LABEL,
+  dealStatusLabel,
+} from '../types'
 import { exportPdf } from '../lib/exporters'
 import { fetchPlaces, fetchSections, subscribePlaces } from '../lib/db'
+import { placeShareUrl, telHref, whatsappHref } from '../lib/phone'
 import MediaImage from './MediaImage'
 
 interface Props {
@@ -9,15 +17,26 @@ interface Props {
   title: string
   onExit: () => void
   exitLabel: string
+  highlightSlug?: string | null
 }
 
-export default function CompanyPortal({ company, title, onExit, exitLabel }: Props) {
+type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'unset'
+
+export default function CompanyPortal({
+  company,
+  title,
+  onExit,
+  exitLabel,
+  highlightSlug,
+}: Props) {
   const [entries, setEntries] = useState<Entry[]>([])
   const [sections, setSections] = useState<Section[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [sectionId, setSectionId] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [busy, setBusy] = useState(false)
+  const [selected, setSelected] = useState<Entry | null>(null)
 
   useEffect(() => {
     let active = true
@@ -52,6 +71,12 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
     [entries, company],
   )
 
+  useEffect(() => {
+    if (!highlightSlug || loading) return
+    const match = companyEntries.find((e) => e.slug.trim() === highlightSlug.trim())
+    if (match) setSelected(match)
+  }, [highlightSlug, loading, companyEntries])
+
   const usedSections = useMemo(() => {
     const ids = new Set(companyEntries.map((e) => e.sectionId))
     return sections.filter((s) => ids.has(s.id))
@@ -60,28 +85,27 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
   const visible = useMemo(() => {
     let list = companyEntries
     if (sectionId !== 'all') list = list.filter((e) => e.sectionId === sectionId)
+    if (statusFilter === 'unset') list = list.filter((e) => !e.dealStatus)
+    else if (statusFilter !== 'all') list = list.filter((e) => e.dealStatus === statusFilter)
     const q = search.trim().toLowerCase()
     if (q) {
       list = list.filter(
         (e) =>
           e.placeName.toLowerCase().includes(q) ||
           e.activityType.toLowerCase().includes(q) ||
-          e.address.toLowerCase().includes(q),
+          e.address.toLowerCase().includes(q) ||
+          dealStatusLabel(e.dealStatus).includes(q) ||
+          (e.slug || '').toLowerCase().includes(q),
       )
     }
     return list
-  }, [companyEntries, sectionId, search])
+  }, [companyEntries, sectionId, statusFilter, search])
 
   const stats = useMemo(() => {
-    const met = companyEntries.filter((e) => e.met === 'yes').length
-    const notMet = companyEntries.filter((e) => e.met === 'no').length
-    const activities = new Set(
-      companyEntries.map((e) =>
-        e.activityType === 'أخرى' && e.customActivity ? e.customActivity : e.activityType,
-      ),
-    ).size
-    const photos = companyEntries.reduce((n, e) => n + (e.photos?.length ?? 0), 0)
-    return { total: companyEntries.length, met, notMet, activities, photos }
+    const purchased = companyEntries.filter((e) => e.dealStatus === 'purchased').length
+    const objections = companyEntries.filter((e) => e.dealStatus === 'objections').length
+    const rejected = companyEntries.filter((e) => e.dealStatus === 'rejected').length
+    return { total: companyEntries.length, purchased, objections, rejected }
   }, [companyEntries])
 
   const sectionName = (id: string) => sections.find((s) => s.id === id)?.name ?? '-'
@@ -98,6 +122,11 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
     } finally {
       setBusy(false)
     }
+  }
+
+  const statusBadge = (status: DealStatus | undefined) => {
+    if (!status) return <span className="deal-badge unset">بدون تصنيف</span>
+    return <span className={`deal-badge deal-${status}`}>{dealStatusLabel(status)}</span>
   }
 
   return (
@@ -126,27 +155,39 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
         </div>
       ) : (
         <>
-          <section className="stats-row">
-            <div className="stat-card">
+          <section className="stats-row filter-stats">
+            <button
+              type="button"
+              className={`stat-card clickable ${statusFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('all')}
+            >
               <span className="stat-num">{stats.total}</span>
               <span className="stat-label">إجمالي الأماكن</span>
-            </div>
-            <div className="stat-card ok">
-              <span className="stat-num">{stats.met}</span>
-              <span className="stat-label">تمت المقابلة</span>
-            </div>
-            <div className="stat-card warn">
-              <span className="stat-num">{stats.notMet}</span>
-              <span className="stat-label">لم تتم المقابلة</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-num">{stats.activities}</span>
-              <span className="stat-label">أنواع الأنشطة</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-num">{stats.photos}</span>
-              <span className="stat-label">عدد الصور</span>
-            </div>
+            </button>
+            <button
+              type="button"
+              className={`stat-card ok clickable ${statusFilter === 'purchased' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('purchased')}
+            >
+              <span className="stat-num">{stats.purchased}</span>
+              <span className="stat-label">مشتري بالفعل</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card amber clickable ${statusFilter === 'objections' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('objections')}
+            >
+              <span className="stat-num">{stats.objections}</span>
+              <span className="stat-label">اعتراضات يمكن حلها</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card warn clickable ${statusFilter === 'rejected' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('rejected')}
+            >
+              <span className="stat-num">{stats.rejected}</span>
+              <span className="stat-label">رافض الفكرة تماما</span>
+            </button>
           </section>
 
           <div className="toolbar">
@@ -169,6 +210,19 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
                 </option>
               ))}
             </select>
+            <select
+              className="company-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            >
+              <option value="all">كل التصنيفات</option>
+              {DEAL_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+              <option value="unset">بدون تصنيف</option>
+            </select>
           </div>
 
           {visible.length === 0 ? (
@@ -179,7 +233,16 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
           ) : (
             <div className="cards">
               {visible.map((e) => (
-                <article className="card report-card" key={e.id}>
+                <article
+                  className={`card report-card clickable ${highlightSlug && e.slug === highlightSlug ? 'highlighted' : ''}`}
+                  key={e.id}
+                  onClick={() => setSelected(e)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === 'Enter' || ev.key === ' ') setSelected(e)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
                   {e.photos?.length > 0 && (
                     <div className="report-hero">
                       <MediaImage
@@ -194,45 +257,152 @@ export default function CompanyPortal({ company, title, onExit, exitLabel }: Pro
                     <h3>{e.placeName || 'بدون اسم'}</h3>
                     <span className="tag">{sectionName(e.sectionId)}</span>
                   </div>
+                  <p className="visitor-label">{VISITED_CLIENT_LABEL}</p>
                   <p className="card-activity">{activityLabel(e)}</p>
                   {e.address && <p className="card-line">📍 {e.address}</p>}
                   {e.managerName && <p className="card-line">👤 {e.managerName}</p>}
                   {e.managerPhone && (
-                    <p className="card-line" dir="ltr">
-                      📞 {e.managerPhone}
-                    </p>
+                    <div className="phone-row" onClick={(ev) => ev.stopPropagation()}>
+                      <span className="card-line phone-num" dir="ltr">
+                        📞 {e.managerPhone}
+                      </span>
+                      <div className="phone-actions">
+                        <a className="btn secondary small" href={telHref(e.managerPhone)}>
+                          اتصال
+                        </a>
+                        <a
+                          className="btn whatsapp small"
+                          href={whatsappHref(e.managerPhone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          واتساب
+                        </a>
+                      </div>
+                    </div>
                   )}
-                  <p className="card-line">
-                    {e.met === 'yes'
-                      ? '✅ تمت المقابلة'
-                      : e.met === 'no'
-                        ? '⛔ لم تتم المقابلة'
-                        : '➖ غير محددة'}
-                  </p>
-                  {e.met === 'yes' && e.meetingNotes && (
-                    <p className="card-notes">{e.meetingNotes}</p>
+                  <div className="card-line">{statusBadge(e.dealStatus)}</div>
+                  {e.dealStatus === 'rejected' && e.rejectionReason && (
+                    <p className="card-notes">سبب الرفض: {e.rejectionReason}</p>
                   )}
                   <p className="card-line time">
                     🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
                   </p>
-                  {e.photos?.length > 1 && (
-                    <div className="card-photos">
-                      {e.photos.slice(1, 4).map((p) => (
-                        <MediaImage
-                          key={p.id}
-                          id={p.id}
-                          directUrl={p.url}
-                          alt="صورة"
-                          className="card-photo"
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <p className="card-open-hint">اضغط لعرض التفاصيل</p>
                 </article>
               ))}
             </div>
           )}
         </>
+      )}
+
+      {selected && (
+        <div className="modal-backdrop" onClick={() => setSelected(null)}>
+          <div
+            className="modal report-detail-modal"
+            onClick={(ev) => ev.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="modal-head">
+              <h2>{selected.placeName || 'بدون اسم'}</h2>
+              <button className="btn ghost small" onClick={() => setSelected(null)}>
+                إغلاق
+              </button>
+            </div>
+            <div className="detail-meta">
+              <span className="tag">{sectionName(selected.sectionId)}</span>
+              <span className="visitor-label">{VISITED_CLIENT_LABEL}</span>
+              {statusBadge(selected.dealStatus)}
+            </div>
+            <dl className="detail-grid">
+              <div>
+                <dt>نوع النشاط</dt>
+                <dd>{activityLabel(selected)}</dd>
+              </div>
+              <div>
+                <dt>اسم المدير</dt>
+                <dd>{selected.managerName || '—'}</dd>
+              </div>
+              <div>
+                <dt>رقم الجوال</dt>
+                <dd dir="ltr">{selected.managerPhone || '—'}</dd>
+              </div>
+              {selected.managerPhone && (
+                <div className="detail-full phone-actions">
+                  <a className="btn secondary small" href={telHref(selected.managerPhone)}>
+                    اتصال
+                  </a>
+                  <a
+                    className="btn whatsapp small"
+                    href={whatsappHref(selected.managerPhone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    واتساب
+                  </a>
+                </div>
+              )}
+              <div className="detail-full">
+                <dt>العنوان</dt>
+                <dd>{selected.address || '—'}</dd>
+              </div>
+              {selected.addressNotes && (
+                <div className="detail-full">
+                  <dt>ملاحظات العنوان</dt>
+                  <dd>{selected.addressNotes}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Slug</dt>
+                <dd dir="ltr">{selected.slug || '—'}</dd>
+              </div>
+              {selected.slug && (
+                <div className="detail-full">
+                  <dt>رابط المتابعة</dt>
+                  <dd dir="ltr">{placeShareUrl(selected.slug)}</dd>
+                </div>
+              )}
+              <div>
+                <dt>اسم المستخدم</dt>
+                <dd dir="ltr">{selected.placeUsername || '—'}</dd>
+              </div>
+              <div>
+                <dt>كلمة المرور</dt>
+                <dd dir="ltr">{selected.placePassword || '—'}</dd>
+              </div>
+              {selected.dealStatus === 'rejected' && (
+                <div className="detail-full">
+                  <dt>أسباب الرفض</dt>
+                  <dd>{selected.rejectionReason || '—'}</dd>
+                </div>
+              )}
+              {selected.meetingNotes && (
+                <div className="detail-full">
+                  <dt>ملخص المقابلة</dt>
+                  <dd>{selected.meetingNotes}</dd>
+                </div>
+              )}
+              <div>
+                <dt>وقت الرفع</dt>
+                <dd>{new Date(selected.updatedAt).toLocaleString('ar-EG')}</dd>
+              </div>
+            </dl>
+            {selected.photos?.length > 0 && (
+              <div className="detail-photos">
+                {selected.photos.map((p) => (
+                  <MediaImage
+                    key={p.id}
+                    id={p.id}
+                    directUrl={p.url}
+                    alt="صورة"
+                    className="detail-photo media-img"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <footer className="app-footer">
