@@ -1,13 +1,16 @@
 -- =====================================================================
--- Supabase schema for the Field Research dashboard
--- Run this in your Supabase project's SQL editor.
+-- Field Research dashboard — Supabase schema
+-- SAFE to run in a project that already has other tables (e.g. "مينو مطعم"):
+-- every object is prefixed with `fr_` and uses CREATE ... IF NOT EXISTS,
+-- so it will NOT touch or overwrite your existing tables.
+-- Run this whole file in: Supabase → SQL Editor → New query → Run.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- Profiles: one row per auth user, holds role + company mapping.
--- role = 'researcher' (collects data) or 'company' (views its reports).
+-- 1) Profiles: one row per auth user (role + which company they represent)
+--    role = 'researcher' (collects data) or 'company' (views its reports)
 -- ---------------------------------------------------------------------
-create table if not exists public.profiles (
+create table if not exists public.fr_profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   full_name text,
   role text not null default 'researcher' check (role in ('researcher', 'company')),
@@ -16,9 +19,9 @@ create table if not exists public.profiles (
 );
 
 -- ---------------------------------------------------------------------
--- Sections (categories) — e.g. مطاعم وكافيهات، شركات ...
+-- 2) Sections (categories)
 -- ---------------------------------------------------------------------
-create table if not exists public.sections (
+create table if not exists public.fr_sections (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   color text,
@@ -26,13 +29,13 @@ create table if not exists public.sections (
 );
 
 -- ---------------------------------------------------------------------
--- Places: the field-research reports.
+-- 3) Places (the field-research reports)
 -- ---------------------------------------------------------------------
-create table if not exists public.places (
+create table if not exists public.fr_places (
   id uuid primary key default gen_random_uuid(),
   researcher_id uuid references auth.users (id) on delete set null,
-  section_id uuid references public.sections (id) on delete set null,
-  target_company text,            -- الشركة المقدَّم إليها التقرير
+  section_id uuid references public.fr_sections (id) on delete set null,
+  target_company text,               -- الشركة المقدَّم إليها التقرير
   place_name text not null,
   address text,
   address_notes text,
@@ -42,97 +45,125 @@ create table if not exists public.places (
   manager_phone text,
   activity_type text,
   custom_activity text,
-  met text check (met in ('yes', 'no', '')),
+  met text,
   meeting_notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 -- ---------------------------------------------------------------------
--- Photos: metadata; the file itself lives in Storage bucket 'place-photos'.
+-- 4) Photos metadata (files live in Storage bucket 'fr-place-photos')
 -- ---------------------------------------------------------------------
-create table if not exists public.place_photos (
+create table if not exists public.fr_place_photos (
   id uuid primary key default gen_random_uuid(),
-  place_id uuid references public.places (id) on delete cascade,
-  storage_path text not null,     -- path within the 'place-photos' bucket
+  place_id uuid references public.fr_places (id) on delete cascade,
+  storage_path text not null,
   captured_at timestamptz not null default now()
 );
 
 -- ---------------------------------------------------------------------
--- Row Level Security
+-- 5) Helper functions (prefixed to avoid clashing with built-ins)
 -- ---------------------------------------------------------------------
-alter table public.profiles enable row level security;
-alter table public.sections enable row level security;
-alter table public.places enable row level security;
-alter table public.place_photos enable row level security;
+create or replace function public.fr_user_role() returns text
+language sql stable security definer as $$
+  select role from public.fr_profiles where id = auth.uid()
+$$;
 
--- Helper: current user's profile role/company.
-create or replace function public.current_role() returns text
-language sql stable as $$ select role from public.profiles where id = auth.uid() $$;
+create or replace function public.fr_user_company() returns text
+language sql stable security definer as $$
+  select company_name from public.fr_profiles where id = auth.uid()
+$$;
 
-create or replace function public.current_company() returns text
-language sql stable as $$ select company_name from public.profiles where id = auth.uid() $$;
+-- ---------------------------------------------------------------------
+-- 6) Row Level Security
+-- ---------------------------------------------------------------------
+alter table public.fr_profiles enable row level security;
+alter table public.fr_sections enable row level security;
+alter table public.fr_places enable row level security;
+alter table public.fr_place_photos enable row level security;
 
--- Profiles: a user can read/update only their own profile.
-drop policy if exists profiles_self on public.profiles;
-create policy profiles_self on public.profiles
+drop policy if exists fr_profiles_self on public.fr_profiles;
+create policy fr_profiles_self on public.fr_profiles
   for all using (id = auth.uid()) with check (id = auth.uid());
 
--- Sections: readable by any authenticated user; writable by researchers.
-drop policy if exists sections_read on public.sections;
-create policy sections_read on public.sections
+drop policy if exists fr_sections_read on public.fr_sections;
+create policy fr_sections_read on public.fr_sections
   for select using (auth.role() = 'authenticated');
-drop policy if exists sections_write on public.sections;
-create policy sections_write on public.sections
-  for all using (public.current_role() = 'researcher')
-  with check (public.current_role() = 'researcher');
+drop policy if exists fr_sections_write on public.fr_sections;
+create policy fr_sections_write on public.fr_sections
+  for all using (public.fr_user_role() = 'researcher')
+  with check (public.fr_user_role() = 'researcher');
 
--- Places:
---   researchers: full access.
---   company users: read only the places whose target_company = their company.
-drop policy if exists places_researcher on public.places;
-create policy places_researcher on public.places
-  for all using (public.current_role() = 'researcher')
-  with check (public.current_role() = 'researcher');
+-- Researchers: full access to places. Company users: read only their company's places.
+drop policy if exists fr_places_researcher on public.fr_places;
+create policy fr_places_researcher on public.fr_places
+  for all using (public.fr_user_role() = 'researcher')
+  with check (public.fr_user_role() = 'researcher');
 
-drop policy if exists places_company_read on public.places;
-create policy places_company_read on public.places
+drop policy if exists fr_places_company_read on public.fr_places;
+create policy fr_places_company_read on public.fr_places
   for select using (
-    public.current_role() = 'company'
-    and target_company = public.current_company()
+    public.fr_user_role() = 'company'
+    and target_company = public.fr_user_company()
   );
 
--- Photos: follow the same visibility as their parent place.
-drop policy if exists photos_researcher on public.place_photos;
-create policy photos_researcher on public.place_photos
-  for all using (public.current_role() = 'researcher')
-  with check (public.current_role() = 'researcher');
+drop policy if exists fr_photos_researcher on public.fr_place_photos;
+create policy fr_photos_researcher on public.fr_place_photos
+  for all using (public.fr_user_role() = 'researcher')
+  with check (public.fr_user_role() = 'researcher');
 
-drop policy if exists photos_company_read on public.place_photos;
-create policy photos_company_read on public.place_photos
+drop policy if exists fr_photos_company_read on public.fr_place_photos;
+create policy fr_photos_company_read on public.fr_place_photos
   for select using (
-    public.current_role() = 'company'
+    public.fr_user_role() = 'company'
     and exists (
-      select 1 from public.places p
-      where p.id = place_id and p.target_company = public.current_company()
+      select 1 from public.fr_places p
+      where p.id = place_id and p.target_company = public.fr_user_company()
     )
   );
 
 -- ---------------------------------------------------------------------
--- Storage bucket for photos (create in the Storage UI or below).
+-- 7) Realtime: let the frontend receive live inserts/updates for places
+-- ---------------------------------------------------------------------
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.fr_places;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.fr_place_photos;
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 8) Storage bucket for photos
 -- ---------------------------------------------------------------------
 insert into storage.buckets (id, name, public)
-values ('place-photos', 'place-photos', false)
+values ('fr-place-photos', 'fr-place-photos', true)
 on conflict (id) do nothing;
 
+-- Allow authenticated users to read/write objects in this bucket.
+drop policy if exists fr_photos_bucket_rw on storage.objects;
+create policy fr_photos_bucket_rw on storage.objects
+  for all to authenticated
+  using (bucket_id = 'fr-place-photos')
+  with check (bucket_id = 'fr-place-photos');
+
 -- =====================================================================
--- Demo accounts (create via Dashboard → Authentication → Users, then set profile):
---   Researcher: email 1111@demo.local  password 1111
---   Company:    email 2222@demo.local  password 2222  (company_name = 'شركة نخبة التسويق')
--- After creating each user, insert their profile, e.g.:
---   insert into public.profiles (id, full_name, role, company_name)
---   values ('<auth-user-uuid>', 'باحث ميداني', 'researcher', null);
---   insert into public.profiles (id, full_name, role, company_name)
---   values ('<auth-user-uuid>', 'شركة نخبة التسويق', 'company', 'شركة نخبة التسويق');
--- The frontend maps the username to <username>@demo.local when signing in.
+-- 9) AFTER running the SQL above, create the demo login users:
+--    Supabase → Authentication → Users → "Add user" (Auto-confirm), create:
+--       1111@demo.local  /  1111
+--       2222@demo.local  /  2222
+--       3333@demo.local  /  3333
+--    Copy each user's UUID (from the Users list), then run the inserts below,
+--    replacing the UUIDs:
+--
+-- insert into public.fr_profiles (id, full_name, role, company_name) values
+--   ('<uuid-of-1111>', 'باحث ميداني',        'researcher', null),
+--   ('<uuid-of-2222>', 'سعودي تريند',        'company',    'سعودي تريند'),
+--   ('<uuid-of-3333>', 'شركة نخبة التسويق',  'company',    'شركة نخبة التسويق');
+--
+-- The frontend signs in by mapping username -> <username>@demo.local.
 -- =====================================================================

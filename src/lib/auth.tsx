@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) throw new Error('بيانات الدخول غير صحيحة')
         // Role + company come from a `profiles` row (see supabase/schema.sql).
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('fr_profiles')
           .select('role, company_name, full_name')
           .eq('id', data.user.id)
           .single()
