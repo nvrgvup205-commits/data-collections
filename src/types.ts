@@ -8,8 +8,9 @@ export interface Section {
 }
 
 export interface PhotoRef {
-  id: Id
+  id: Id // local: IndexedDB key; cloud: Storage object path
   capturedAt: number
+  url?: string // cloud: public URL for display
 }
 
 export interface Entry {

@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import { PhotoRef } from '../types'
 import { processPhoto } from '../lib/image'
 import { putBlob } from '../lib/media'
+import { isSupabaseEnabled } from '../lib/supabase'
+import { uploadPhoto } from '../lib/db'
 import { uid } from '../storage'
 import MediaImage from './MediaImage'
 
@@ -26,9 +28,14 @@ export default function PhotoCapture({ photos, onAdd, onRemove }: Props) {
     try {
       for (const file of files) {
         const { blob, capturedAt } = await processPhoto(file)
-        const id = uid()
-        await putBlob(id, blob)
-        onAdd({ id, capturedAt })
+        if (isSupabaseEnabled) {
+          const ref = await uploadPhoto(blob)
+          onAdd({ ...ref, capturedAt })
+        } else {
+          const id = uid()
+          await putBlob(id, blob)
+          onAdd({ id, capturedAt })
+        }
       }
       setMsg('تمت إضافة الصورة مع ختم الوقت والتاريخ.')
     } catch (err) {
@@ -64,7 +71,7 @@ export default function PhotoCapture({ photos, onAdd, onRemove }: Props) {
         <div className="photo-grid">
           {photos.map((p) => (
             <div className="photo-item" key={p.id}>
-              <MediaImage id={p.id} alt="صورة المدخل" />
+              <MediaImage id={p.id} directUrl={p.url} alt="صورة المدخل" />
               <button
                 type="button"
                 className="photo-remove"

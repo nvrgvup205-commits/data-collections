@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AppData, Entry, KNOWN_COMPANIES, Section, SECTION_COLORS } from '../types'
-import { loadData, saveData, uid } from '../storage'
-import { deleteBlob } from '../lib/media'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Entry, KNOWN_COMPANIES, Section, SECTION_COLORS } from '../types'
 import { useAuth } from '../lib/auth'
+import {
+  addSection as addSectionCloud,
+  deletePlace,
+  ensureDefaultSections,
+  fetchPlaces,
+  savePlace,
+  subscribePlaces,
+} from '../lib/db'
 import EntryForm from './EntryForm'
 import ExportPanel from './ExportPanel'
 import MediaImage from './MediaImage'
@@ -15,7 +21,9 @@ interface Props {
 
 export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const { user, logout } = useAuth()
-  const [data, setData] = useState<AppData>(() => loadData())
+  const [sections, setSections] = useState<Section[]>([])
+  const [entries, setEntries] = useState<Entry[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeSection, setActiveSection] = useState<string>('all')
   const [activeCompany, setActiveCompany] = useState<string>('all')
   const [view, setView] = useState<View>('list')
@@ -23,27 +31,50 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const [showExport, setShowExport] = useState(false)
   const [search, setSearch] = useState('')
 
+  const refreshEntries = useCallback(async () => {
+    const p = await fetchPlaces()
+    setEntries(p)
+  }, [])
+
   useEffect(() => {
-    saveData(data)
-  }, [data])
+    let active = true
+    ;(async () => {
+      try {
+        const s = await ensureDefaultSections()
+        const p = await fetchPlaces()
+        if (active) {
+          setSections(s)
+          setEntries(p)
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        if (active) setLoading(false)
+      }
+    })()
+    const unsub = subscribePlaces(() => {
+      fetchPlaces().then((p) => setEntries(p)).catch(() => undefined)
+    })
+    return () => {
+      active = false
+      unsub()
+    }
+  }, [])
 
   const companies = useMemo(() => {
     const set = new Set<string>(KNOWN_COMPANIES)
-    data.entries.forEach((e) => {
+    entries.forEach((e) => {
       const c = e.targetCompany?.trim()
       if (c) set.add(c)
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))
-  }, [data.entries])
+  }, [entries])
 
   const filteredEntries = useMemo(() => {
-    let list = [...data.entries].sort((a, b) => b.updatedAt - a.updatedAt)
-    if (activeSection !== 'all') {
-      list = list.filter((e) => e.sectionId === activeSection)
-    }
-    if (activeCompany !== 'all') {
+    let list = [...entries].sort((a, b) => b.updatedAt - a.updatedAt)
+    if (activeSection !== 'all') list = list.filter((e) => e.sectionId === activeSection)
+    if (activeCompany !== 'all')
       list = list.filter((e) => (e.targetCompany?.trim() || '') === activeCompany)
-    }
     const q = search.trim().toLowerCase()
     if (q) {
       list = list.filter(
@@ -55,58 +86,56 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
       )
     }
     return list
-  }, [data.entries, activeSection, activeCompany, search])
+  }, [entries, activeSection, activeCompany, search])
 
-  const sectionName = (id: string) =>
-    data.sections.find((s) => s.id === id)?.name ?? '-'
+  const sectionName = (id: string) => sections.find((s) => s.id === id)?.name ?? '-'
 
   const startAdd = () => {
     setEditing(undefined)
     setView('form')
   }
-
   const startEdit = (entry: Entry) => {
     setEditing(entry)
     setView('form')
   }
 
-  const saveEntry = (entry: Entry) => {
-    setData((prev) => {
-      const exists = prev.entries.some((e) => e.id === entry.id)
-      const entries = exists
-        ? prev.entries.map((e) => (e.id === entry.id ? entry : e))
-        : [...prev.entries, entry]
-      return { ...prev, entries }
-    })
+  const saveEntry = async (entry: Entry) => {
+    try {
+      await savePlace(entry)
+      await refreshEntries()
+    } catch (e) {
+      alert('تعذّر حفظ التقرير: ' + (e as Error).message)
+      return
+    }
     setView('list')
     setEditing(undefined)
   }
 
-  const deleteEntry = (id: string) => {
+  const deleteEntry = async (id: string) => {
     if (!confirm('حذف هذا المكان نهائيًا؟')) return
-    const target = data.entries.find((e) => e.id === id)
-    target?.photos?.forEach((p) => void deleteBlob(p.id))
-    setData((prev) => ({
-      ...prev,
-      entries: prev.entries.filter((e) => e.id !== id),
-    }))
+    const target = entries.find((e) => e.id === id)
+    try {
+      await deletePlace(id, (target?.photos ?? []).map((p) => p.id))
+      await refreshEntries()
+    } catch (e) {
+      alert('تعذّر الحذف: ' + (e as Error).message)
+    }
   }
 
-  const addSection = () => {
+  const addSection = async () => {
     const name = prompt('اسم القسم الجديد (مثال: عيادات، صيدليات...)')
     if (!name || !name.trim()) return
-    const color = SECTION_COLORS[data.sections.length % SECTION_COLORS.length]
-    const section: Section = {
-      id: uid(),
-      name: name.trim(),
-      color,
-      createdAt: Date.now(),
+    const color = SECTION_COLORS[sections.length % SECTION_COLORS.length]
+    try {
+      const s = await addSectionCloud(name.trim(), color)
+      setSections((prev) => [...prev, s])
+    } catch (e) {
+      alert('تعذّرت إضافة القسم: ' + (e as Error).message)
     }
-    setData((prev) => ({ ...prev, sections: [...prev.sections, section] }))
   }
 
   const defaultSectionId =
-    activeSection !== 'all' ? activeSection : data.sections[0]?.id ?? ''
+    activeSection !== 'all' ? activeSection : sections[0]?.id ?? ''
 
   return (
     <div className="app">
@@ -115,7 +144,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           <span className="brand-mark">◈</span>
           <div>
             <h1>لوحة تجميع الأبحاث الميدانية</h1>
-            <p>مرحبًا {user?.name} — اجمع بيانات الأماكن وصدّرها كتقرير جاهز.</p>
+            <p>مرحبًا {user?.name} — بياناتك تُحفظ في السحابة لحظيًا.</p>
           </div>
         </div>
         <div className="header-actions">
@@ -133,17 +162,21 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
         </div>
       </header>
 
-      {view === 'list' && (
+      {loading ? (
+        <div className="empty">
+          <p className="empty-title">جارٍ تحميل البيانات من السحابة...</p>
+        </div>
+      ) : view === 'list' ? (
         <>
           <div className="sections-bar">
             <button
               className={`chip ${activeSection === 'all' ? 'active' : ''}`}
               onClick={() => setActiveSection('all')}
             >
-              الكل ({data.entries.length})
+              الكل ({entries.length})
             </button>
-            {data.sections.map((s) => {
-              const count = data.entries.filter((e) => e.sectionId === s.id).length
+            {sections.map((s) => {
+              const count = entries.filter((e) => e.sectionId === s.id).length
               return (
                 <button
                   key={s.id}
@@ -177,9 +210,9 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
               value={activeCompany}
               onChange={(e) => setActiveCompany(e.target.value)}
             >
-              <option value="all">كل الشركات ({data.entries.length})</option>
+              <option value="all">كل الشركات ({entries.length})</option>
               {companies.map((c) => {
-                const count = data.entries.filter(
+                const count = entries.filter(
                   (e) => (e.targetCompany?.trim() || '') === c,
                 ).length
                 return (
@@ -209,9 +242,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           {filteredEntries.length === 0 ? (
             <div className="empty">
               <p className="empty-title">لا توجد بيانات بعد</p>
-              <p className="muted">
-                اضغط «إضافة مكان» لبدء تسجيل أول مكان في بحثك الميداني.
-              </p>
+              <p className="muted">اضغط «إضافة مكان» لتسجيل أول مكان.</p>
               <button className="btn primary" onClick={startAdd}>
                 + إضافة مكان
               </button>
@@ -235,14 +266,18 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                   {e.photos?.length > 0 && (
                     <div className="card-photos">
                       {e.photos.slice(0, 3).map((p) => (
-                        <MediaImage key={p.id} id={p.id} alt="صورة المدخل" className="card-photo" />
+                        <MediaImage
+                          key={p.id}
+                          id={p.id}
+                          directUrl={p.url}
+                          alt="صورة المدخل"
+                          className="card-photo"
+                        />
                       ))}
                     </div>
                   )}
                   {e.address && <p className="card-line">📍 {e.address}</p>}
-                  {e.managerName && (
-                    <p className="card-line">👤 {e.managerName}</p>
-                  )}
+                  {e.managerName && <p className="card-line">👤 {e.managerName}</p>}
                   {e.managerPhone && (
                     <p className="card-line" dir="ltr">
                       📞 {e.managerPhone}
@@ -258,18 +293,14 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                   {e.met === 'yes' && e.meetingNotes && (
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
-                  {e.audioNote && <p className="card-line">🎙️ يوجد مقطع صوتي</p>}
-                  <p className="card-line time" dir="rtl">
+                  <p className="card-line time">
                     🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
                   </p>
                   <div className="card-actions">
                     <button className="btn ghost small" onClick={() => startEdit(e)}>
                       تعديل
                     </button>
-                    <button
-                      className="btn danger small"
-                      onClick={() => deleteEntry(e.id)}
-                    >
+                    <button className="btn danger small" onClick={() => deleteEntry(e.id)}>
                       حذف
                     </button>
                   </div>
@@ -278,16 +309,14 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
             </div>
           )}
         </>
-      )}
-
-      {view === 'form' && (
+      ) : (
         <div className="form-view">
           <button className="back-link" onClick={() => setView('list')}>
             → رجوع للقائمة
           </button>
           <h2>{editing ? 'تعديل مكان' : 'إضافة مكان جديد'}</h2>
           <EntryForm
-            sections={data.sections}
+            sections={sections}
             companies={companies}
             initial={editing}
             defaultSectionId={defaultSectionId}
@@ -299,8 +328,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
 
       {showExport && (
         <ExportPanel
-          entries={data.entries}
-          sections={data.sections}
+          entries={entries}
+          sections={sections}
           companies={companies}
           initialCompany={activeCompany !== 'all' ? activeCompany : ''}
           onClose={() => setShowExport(false)}
@@ -308,7 +337,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
       )}
 
       <footer className="app-footer">
-        <span>بياناتك محفوظة على جهازك (localStorage + IndexedDB).</span>
+        <span>البيانات محفوظة في السحابة (Supabase) وتتحدّث لحظيًا.</span>
       </footer>
     </div>
   )

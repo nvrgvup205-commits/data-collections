@@ -3,9 +3,11 @@ import { AppData, Section, SECTION_COLORS } from './types'
 const STORAGE_KEY = 'field-research-data-v1'
 
 export function uid(): string {
-  return (
-    Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
-  )
+  // UUID so ids are valid for both localStorage and Supabase (uuid columns).
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
 function defaultSections(): Section[] {

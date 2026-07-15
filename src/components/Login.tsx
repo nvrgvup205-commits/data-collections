@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { isSupabaseEnabled } from '../lib/supabase'
 
 export default function Login() {
   const { login, loading } = useAuth()
@@ -61,22 +60,20 @@ export default function Login() {
           </button>
         </form>
 
-        {!isSupabaseEnabled && (
-          <div className="login-demo">
-            <p className="muted">حسابات تجريبية (اضغط للتعبئة):</p>
-            <div className="demo-chips">
-              <button className="chip" onClick={() => fillDemo('1111', '1111')}>
-                باحث — 1111 / 1111
-              </button>
-              <button className="chip" onClick={() => fillDemo('2222', '2222')}>
-                سعودي تريند — 2222 / 2222
-              </button>
-              <button className="chip" onClick={() => fillDemo('3333', '3333')}>
-                نخبة التسويق — 3333 / 3333
-              </button>
-            </div>
+        <div className="login-demo">
+          <p className="muted">حسابات الدخول (اضغط للتعبئة):</p>
+          <div className="demo-chips">
+            <button className="chip" onClick={() => fillDemo('1111', '111111')}>
+              باحث — 1111 / 111111
+            </button>
+            <button className="chip" onClick={() => fillDemo('2222', '222222')}>
+              سعودي تريند — 2222 / 222222
+            </button>
+            <button className="chip" onClick={() => fillDemo('3333', '333333')}>
+              نخبة التسويق — 3333 / 333333
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

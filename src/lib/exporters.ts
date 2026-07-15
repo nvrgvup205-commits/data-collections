@@ -14,8 +14,15 @@ async function collectPhotoDataUrls(entries: Entry[]): Promise<Map<string, strin
   for (const e of entries) {
     for (const p of e.photos ?? []) {
       try {
-        const blob = await getBlob(p.id)
-        if (blob) map.set(p.id, await blobToDataUrl(blob))
+        if (p.url) {
+          // Cloud photo: fetch the public URL and inline it.
+          const res = await fetch(p.url)
+          const blob = await res.blob()
+          map.set(p.id, await blobToDataUrl(blob))
+        } else {
+          const blob = await getBlob(p.id)
+          if (blob) map.set(p.id, await blobToDataUrl(blob))
+        }
       } catch {
         /* skip unreadable photo */
       }

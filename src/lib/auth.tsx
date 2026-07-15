@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (isSupabaseEnabled && supabase) {
         // Supabase auth: treat the username as an email (append a domain if needed).
-        const email = uname.includes('@') ? uname : `${uname}@demo.local`
+        const email = uname.includes('@') ? uname : `${uname}@example.com`
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,

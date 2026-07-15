@@ -3,15 +3,20 @@ import { getObjectUrl } from '../lib/media'
 
 interface Props {
   id: string
+  directUrl?: string // cloud: public URL; when set, used directly
   alt?: string
   className?: string
   onClick?: () => void
 }
 
-export default function MediaImage({ id, alt, className, onClick }: Props) {
-  const [url, setUrl] = useState<string | null>(null)
+export default function MediaImage({ id, directUrl, alt, className, onClick }: Props) {
+  const [url, setUrl] = useState<string | null>(directUrl ?? null)
 
   useEffect(() => {
+    if (directUrl) {
+      setUrl(directUrl)
+      return
+    }
     let active = true
     let created: string | null = null
     getObjectUrl(id).then((u) => {
@@ -26,7 +31,7 @@ export default function MediaImage({ id, alt, className, onClick }: Props) {
       active = false
       if (created) URL.revokeObjectURL(created)
     }
-  }, [id])
+  }, [id, directUrl])
 
   if (!url) {
     return <div className={`media-img media-placeholder ${className ?? ''}`} />
