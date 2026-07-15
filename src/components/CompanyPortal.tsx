@@ -6,6 +6,7 @@ import {
   Section,
   VISITED_CLIENT_LABEL,
   dealStatusLabel,
+  metStatusLabel,
 } from '../types'
 import { exportExcel, exportPdf } from '../lib/exporters'
 import { fetchPlaces, fetchSections, subscribePlaces } from '../lib/db'
@@ -151,7 +152,8 @@ export default function CompanyPortal({
     const purchased = companyEntries.filter((e) => e.dealStatus === 'purchased').length
     const objections = companyEntries.filter((e) => e.dealStatus === 'objections').length
     const rejected = companyEntries.filter((e) => e.dealStatus === 'rejected').length
-    return { total: companyEntries.length, purchased, objections, rejected }
+    const followUp = companyEntries.filter((e) => e.dealStatus === 'follow_up').length
+    return { total: companyEntries.length, purchased, objections, rejected, followUp }
   }, [companyEntries])
 
   const sectionName = (id: string) => sections.find((s) => s.id === id)?.name ?? '-'
@@ -251,6 +253,14 @@ export default function CompanyPortal({
               <span className="stat-num">{stats.rejected}</span>
               <span className="stat-label">رافض الفكرة تماما</span>
             </button>
+            <button
+              type="button"
+              className={`stat-card follow clickable ${statusFilter === 'follow_up' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('follow_up')}
+            >
+              <span className="stat-num">{stats.followUp}</span>
+              <span className="stat-label">يعاد التواصل / الزيارة</span>
+            </button>
           </section>
 
           <div className="toolbar">
@@ -347,8 +357,12 @@ export default function CompanyPortal({
                     </div>
                   )}
                   <div className="card-line">{statusBadge(e.dealStatus)}</div>
+                  <p className="card-line">{metStatusLabel(e.met)}</p>
                   {e.dealStatus === 'rejected' && e.rejectionReason && (
                     <p className="card-notes">سبب الرفض: {e.rejectionReason}</p>
+                  )}
+                  {(e.met === 'yes' || e.met === 'phone_answered') && e.meetingNotes && (
+                    <p className="card-notes">{e.meetingNotes}</p>
                   )}
                   <p className="card-line time">
                     🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
@@ -384,6 +398,14 @@ export default function CompanyPortal({
               <div>
                 <dt>نوع النشاط</dt>
                 <dd>{activityLabel(selected)}</dd>
+              </div>
+              <div>
+                <dt>حالة التواصل</dt>
+                <dd>{metStatusLabel(selected.met)}</dd>
+              </div>
+              <div>
+                <dt>التصنيف</dt>
+                <dd>{dealStatusLabel(selected.dealStatus) || 'بدون تصنيف'}</dd>
               </div>
               <div>
                 <dt>اسم المدير</dt>

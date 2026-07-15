@@ -684,9 +684,24 @@ body {
   color: #b91c1c;
 }
 
+.deal-badge.deal-follow_up {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 .deal-badge.unset {
   background: #f1f5f9;
   color: #64748b;
+}
+
+.radio-pill.deal-follow_up.active {
+  border-color: #4338ca;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.stat-card.follow .stat-num {
+  color: #4338ca;
 }
 
 .deal-status-row {
@@ -709,6 +724,12 @@ body {
   border-color: #b91c1c;
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.radio-pill.deal-follow_up.active {
+  border-color: #4338ca;
+  background: #eef2ff;
+  color: #3730a3;
 }
 
 .slug-share {

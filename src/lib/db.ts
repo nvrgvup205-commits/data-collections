@@ -160,7 +160,21 @@ interface PlaceExt {
 }
 
 function parseDealStatus(raw: string | null | undefined): DealStatus {
-  return raw === 'purchased' || raw === 'rejected' || raw === 'objections' ? raw : ''
+  return raw === 'purchased' ||
+    raw === 'rejected' ||
+    raw === 'objections' ||
+    raw === 'follow_up'
+    ? raw
+    : ''
+}
+
+function parseMetStatus(raw: string | null | undefined): Entry['met'] {
+  return raw === 'yes' ||
+    raw === 'no' ||
+    raw === 'phone_answered' ||
+    raw === 'phone_no_answer'
+    ? raw
+    : ''
 }
 
 function packMeetingNotes(notes: string, ext: PlaceExt): string | null {
@@ -203,7 +217,7 @@ function rowToEntry(r: PlaceRow, photos: PhotoRef[]): Entry {
     managerPhone: r.manager_phone ?? '',
     activityType: r.activity_type ?? '',
     customActivity: r.custom_activity ?? '',
-    met: (r.met as Entry['met']) ?? '',
+    met: parseMetStatus(r.met),
     meetingNotes: notes,
     dealStatus: parseDealStatus(r.deal_status) || parseDealStatus(ext.dealStatus) || '',
     rejectionReason: r.rejection_reason ?? ext.rejectionReason ?? '',

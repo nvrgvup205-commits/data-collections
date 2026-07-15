@@ -7,6 +7,7 @@ import {
   SECTION_COLORS,
   VISITED_CLIENT_LABEL,
   dealStatusLabel,
+  metStatusLabel,
 } from '../types'
 import { useAuth } from '../lib/auth'
 import {
@@ -89,7 +90,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
     const purchased = entries.filter((e) => e.dealStatus === 'purchased').length
     const objections = entries.filter((e) => e.dealStatus === 'objections').length
     const rejected = entries.filter((e) => e.dealStatus === 'rejected').length
-    return { total: entries.length, purchased, objections, rejected }
+    const followUp = entries.filter((e) => e.dealStatus === 'follow_up').length
+    return { total: entries.length, purchased, objections, rejected, followUp }
   }, [entries])
 
   const filteredEntries = useMemo(() => {
@@ -243,6 +245,14 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
               <span className="stat-num">{statusCounts.rejected}</span>
               <span className="stat-label">رافض الفكرة تماما</span>
             </button>
+            <button
+              type="button"
+              className={`stat-card follow clickable ${statusFilter === 'follow_up' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('follow_up')}
+            >
+              <span className="stat-num">{statusCounts.followUp}</span>
+              <span className="stat-label">يعاد التواصل / الزيارة</span>
+            </button>
           </section>
 
           <div className="sections-bar">
@@ -376,13 +386,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                       </div>
                     </div>
                   )}
-                  <p className="card-line">
-                    {e.met === 'yes'
-                      ? '✅ تمت المقابلة'
-                      : e.met === 'no'
-                        ? '⛔ لم تتم المقابلة'
-                        : '➖ المقابلة غير محددة'}
-                  </p>
+                  <p className="card-line">📞 {metStatusLabel(e.met)}</p>
                   <p className="card-line">
                     {e.dealStatus ? (
                       <span className={`deal-badge deal-${e.dealStatus}`}>
@@ -404,7 +408,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                       </p>
                     ) : null
                   })()}
-                  {e.met === 'yes' && e.meetingNotes && (
+                  {(e.met === 'yes' || e.met === 'phone_answered') && e.meetingNotes && (
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
                   <p className="card-line time">

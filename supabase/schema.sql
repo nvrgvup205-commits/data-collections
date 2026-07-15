@@ -50,7 +50,7 @@ create table if not exists public.fr_places (
   -- موقف العميل من الفكرة: purchased | rejected | objections
   deal_status text check (
     deal_status is null
-    or deal_status in ('purchased', 'rejected', 'objections')
+    or deal_status in ('purchased', 'rejected', 'objections', 'follow_up')
   ),
   rejection_reason text,
   slug text,
@@ -80,7 +80,7 @@ begin
     add constraint fr_places_deal_status_check
     check (
       deal_status is null
-      or deal_status in ('purchased', 'rejected', 'objections')
+      or deal_status in ('purchased', 'rejected', 'objections', 'follow_up')
     );
 exception when others then null;
 end $$;

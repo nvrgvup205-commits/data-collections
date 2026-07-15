@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { Entry, Section, dealStatusLabel } from '../types'
+import { Entry, Section, dealStatusLabel, metStatusLabel } from '../types'
 import { getBlob, blobToDataUrl } from './media'
 
 export interface ExportMeta {
@@ -58,7 +58,7 @@ export function exportExcel(
     'الإحداثيات': e.lat != null && e.lng != null ? `${e.lat}, ${e.lng}` : '',
     'اسم المدير': e.managerName,
     'رقم الجوال': e.managerPhone,
-    'تمت المقابلة؟': e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : '',
+    'تمت المقابلة؟': metStatusLabel(e.met),
     'التصنيف': dealStatusLabel(e.dealStatus) || 'بدون تصنيف',
     'أسباب الرفض': e.rejectionReason || '',
     'Slug': e.slug || '',
@@ -112,8 +112,7 @@ function buildReportHtml(
 
   const cards = entries
     .map((e, i) => {
-      const met =
-        e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : 'غير محدد'
+      const met = metStatusLabel(e.met)
       const coords =
         e.lat != null && e.lng != null ? `${e.lat.toFixed(6)}, ${e.lng.toFixed(6)}` : '-'
       const photoImgs = (e.photos ?? [])

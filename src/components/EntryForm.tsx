@@ -3,6 +3,8 @@ import {
   ACTIVITY_TYPES,
   DEAL_STATUS_OPTIONS,
   Entry,
+  MET_STATUS_OPTIONS,
+  MetStatus,
   PhotoRef,
   Section,
 } from '../types'
@@ -116,6 +118,15 @@ export default function EntryForm({
     } else {
       update('targetCompany', companyName)
     }
+  }
+
+  const setMet = (value: MetStatus) => {
+    setEntry((prev) => ({
+      ...prev,
+      met: value,
+      // لم يرد هاتفيًا → تصنيف تلقائي: يعاد التواصل/الزيارة
+      dealStatus: value === 'phone_no_answer' ? 'follow_up' : prev.dealStatus,
+    }))
   }
 
   const handleCoords = (lat: number, lng: number) => {
@@ -432,31 +443,32 @@ export default function EntryForm({
       </div>
 
       <div className="field">
-        <span>هل قابلت المسؤول؟</span>
-        <div className="radio-row">
-          <label className={`radio-pill ${entry.met === 'yes' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="met"
-              checked={entry.met === 'yes'}
-              onChange={() => update('met', 'yes')}
-            />
-            نعم، قابلته
-          </label>
-          <label className={`radio-pill ${entry.met === 'no' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="met"
-              checked={entry.met === 'no'}
-              onChange={() => update('met', 'no')}
-            />
-            لا، لم أقابله
-          </label>
+        <span>حالة المقابلة / التواصل</span>
+        <div className="radio-row deal-status-row">
+          {MET_STATUS_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`radio-pill ${entry.met === opt.value ? 'active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="met"
+                checked={entry.met === opt.value}
+                onChange={() => setMet(opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
         </div>
+        {entry.met === 'phone_no_answer' && (
+          <p className="hint muted">
+            تم تعيين التصنيف تلقائيًا: يعاود التواصل معها أو زيارتها
+          </p>
+        )}
       </div>
 
       <div className="field">
-        <span>تصنيف نتيجة الزيارة</span>
+        <span>تصنيف نتيجة الزيارة (يظهر للباحث والشركة)</span>
         <div className="radio-row deal-status-row">
           {DEAL_STATUS_OPTIONS.map((opt) => (
             <label
@@ -487,15 +499,23 @@ export default function EntryForm({
         </label>
       )}
 
-      {entry.met === 'yes' && (
+      {(entry.met === 'yes' || entry.met === 'phone_answered') && (
         <div className="field">
-          <span>ماذا حدث في المقابلة؟</span>
+          <span>
+            {entry.met === 'phone_answered'
+              ? 'ملاحظات الباحث (بعد الرد هاتفيًا)'
+              : 'ماذا حدث في المقابلة؟'}
+          </span>
           <VoiceInput onAppendText={appendMeetingNote} onAudioNote={handleAudioNote} />
           <textarea
             rows={4}
             value={entry.meetingNotes}
             onChange={(e) => update('meetingNotes', e.target.value)}
-            placeholder="اكتب ملخص المقابلة أو استخدم الأدوات الصوتية بالأعلى..."
+            placeholder={
+              entry.met === 'phone_answered'
+                ? 'اكتب ملاحظاتك كباحث عن المكالمة...'
+                : 'اكتب ملخص المقابلة أو استخدم الأدوات الصوتية بالأعلى...'
+            }
           />
           {entry.audioNote && (
             <div className="audio-note">
