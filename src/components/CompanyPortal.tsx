@@ -198,6 +198,18 @@ export default function CompanyPortal({
     return <span className={`deal-badge deal-${status}`}>{dealStatusLabel(status)}</span>
   }
 
+  const metBadge = (met: Entry['met']) => {
+    const label = metStatusLabel(met)
+    if (met === 'yes') return <span className="met-badge met-yes">{label}</span>
+    if (met === 'phone_answered') return <span className="met-badge met-phone">{label}</span>
+    if (met === 'phone_no_answer') return <span className="met-badge met-warn">{label}</span>
+    if (met === 'no') return <span className="met-badge met-no">{label}</span>
+    return <span className="met-badge met-unset">{label}</span>
+  }
+
+  const dealStatusClass = (status: DealStatus | undefined) =>
+    status && status !== '' ? `status-${status}` : 'status-unset'
+
   return (
     <div className="portal">
       <header className="portal-header">
@@ -323,10 +335,10 @@ export default function CompanyPortal({
               <p className="muted">سيظهر هنا كل تقرير ميداني يُقدَّم لشركتكم فور رفعه.</p>
             </div>
           ) : (
-            <div className="cards">
+            <div className="places-grid">
               {visible.map((e) => (
                 <article
-                  className="card report-card clickable"
+                  className={`card place-grid-card clickable ${dealStatusClass(e.dealStatus)}`}
                   key={e.id}
                   onClick={() => setSelected(e)}
                   onKeyDown={(ev) => {
@@ -334,69 +346,44 @@ export default function CompanyPortal({
                   }}
                   role="button"
                   tabIndex={0}
+                  aria-label={`${e.placeName || 'بدون اسم'} — اضغط لعرض التفاصيل`}
                 >
-                  {e.photos?.length > 0 && (
-                    <div className="report-hero">
+                  <div className="place-grid-thumb">
+                    {e.photos?.length > 0 ? (
                       <MediaImage
                         id={e.photos[0].id}
                         directUrl={e.photos[0].url}
                         alt="صورة المدخل"
-                        className="report-hero-img"
+                        className="place-grid-thumb-img"
                       />
-                    </div>
-                  )}
-                  <div className="card-head">
-                    <h3>{e.placeName || 'بدون اسم'}</h3>
-                    <span className="tag">{sectionName(e.sectionId)}</span>
-                  </div>
-                  <p className="visitor-label">{VISITED_CLIENT_LABEL}</p>
-                  <p className="card-activity">{activityLabel(e)}</p>
-                  {e.address && <p className="card-line">📍 {e.address}</p>}
-                  {e.lat != null && e.lng != null && (
-                    <a
-                      className="card-line map-open-link"
-                      href={googleMapLink({ lat: e.lat, lng: e.lng })}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(ev) => ev.stopPropagation()}
-                    >
-                      🗺️ فتح الموقع في خرائط جوجل
-                    </a>
-                  )}
-                  {e.managerName && <p className="card-line">👤 {e.managerName}</p>}
-                  {e.managerPhone && (
-                    <div className="phone-row" onClick={(ev) => ev.stopPropagation()}>
-                      <span className="card-line phone-num" dir="ltr">
-                        📞 {e.managerPhone}
+                    ) : (
+                      <span className="place-grid-thumb-fallback" aria-hidden>
+                        📍
                       </span>
-                      <div className="phone-actions">
-                        <a className="btn secondary small" href={telHref(e.managerPhone)}>
-                          اتصال
-                        </a>
-                        <a
-                          className="btn whatsapp small"
-                          href={whatsappHref(e.managerPhone)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          واتساب
-                        </a>
-                      </div>
+                    )}
+                    {usedSections.length > 0 && (
+                      <span className="place-grid-section">{sectionName(e.sectionId)}</span>
+                    )}
+                  </div>
+                  <div className="place-grid-body">
+                    <h3 className="place-grid-name">{e.placeName || 'بدون اسم'}</h3>
+                    <p className="place-grid-activity">{activityLabel(e)}</p>
+                    <div className="place-grid-badges">
+                      {statusBadge(e.dealStatus)}
+                      {metBadge(e.met)}
                     </div>
-                  )}
-                  <div className="card-line">{statusBadge(e.dealStatus)}</div>
-                  <p className="card-line">{metStatusLabel(e.met)}</p>
-                  {e.dealStatus === 'rejected' && e.rejectionReason && (
-                    <p className="card-notes">سبب الرفض: {e.rejectionReason}</p>
-                  )}
-                  {(e.met === 'yes' || e.met === 'phone_answered') && e.meetingNotes && (
-                    <p className="card-notes">{e.meetingNotes}</p>
-                  )}
-                  <p className="card-line time">
-                    🕒 وقت التقاط الصورة الفعلي:{' '}
-                    {new Date(photoCaptureTimestamp(e)).toLocaleString('ar-EG')}
-                  </p>
-                  <p className="card-open-hint">اضغط لعرض التفاصيل</p>
+                    <div className="place-grid-footer">
+                      <time className="place-grid-time" dateTime={new Date(photoCaptureTimestamp(e)).toISOString()}>
+                        {new Date(photoCaptureTimestamp(e)).toLocaleString('ar-EG', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </time>
+                      <span className="place-grid-hint">التفاصيل ←</span>
+                    </div>
+                  </div>
                 </article>
               ))}
             </div>
