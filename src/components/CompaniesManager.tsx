@@ -96,7 +96,7 @@ export default function CompaniesManager({ onClose }: Props) {
           </button>
         </div>
         <p className="muted">
-          كل شركة لها رابط خاص <code dir="ltr">/#/p/slug</code> ومستخدم/كلمة مرور تحدّدهما هنا.
+          كل شركة لها رابط خاص <code dir="ltr">/p/slug</code> ومستخدم/كلمة مرور تحدّدهما هنا.
         </p>
         {message && <p className="hint">{message}</p>}
 

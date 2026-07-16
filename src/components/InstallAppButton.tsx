@@ -17,7 +17,7 @@ type PlatformTab = 'android' | 'ios'
 interface Props {
   /** header = زر واحد صغير | footer = صف كامل في أسفل الصفحة */
   placement?: 'header' | 'footer'
-  /** باحث = تطبيق لوحة الباحث | شركة = تطبيق بوابة الشركة (يفتح /#/p/slug) */
+  /** باحث = تطبيق لوحة الباحث | شركة = تطبيق بوابة الشركة (يفتح /p/slug/) */
   profile?: PwaAppProfile
 }
 
@@ -173,7 +173,8 @@ export default function InstallAppButton({
                   {isCompany && (
                     <>
                       {' '}
-                      تأكد أنك على <strong>رابط بوابة الشركة</strong> وليس تطبيق الباحث.
+                      إذا ظهر <strong>«فتح باحث»</strong> بدل التثبيت، انسخ رابط البوابة وافتحه
+                      مباشرة في Chrome (ليس من داخل تطبيق الباحث).
                     </>
                   )}
                 </p>

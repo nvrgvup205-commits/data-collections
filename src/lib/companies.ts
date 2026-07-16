@@ -22,14 +22,22 @@ function now() {
   return Date.now()
 }
 
-/** Canonical company portal link: /#/p/{slug} */
-export function companyShareUrl(slug: string): string {
-  if (!slug.trim()) return ''
-  const base = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${base}/#/p/${encodeURIComponent(slug.trim())}`
+/** Path segment for company portal (used in URLs and PWA scope). */
+export function companyPortalPath(slug: string): string {
+  const s = slug.trim()
+  if (!s) return ''
+  return `/p/${encodeURIComponent(s)}/`
 }
 
-/** Accept both /#/p/slug (preferred) and legacy /#/c/slug */
+/** Canonical company portal link: /p/{slug}/ */
+export function companyShareUrl(slug: string): string {
+  const path = companyPortalPath(slug)
+  if (!path) return ''
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${base}${path}`
+}
+
+/** Accept /p/slug paths and legacy /#/p/slug hashes. */
 export function parseCompanySlugFromHash(hash: string): string | null {
   const m = hash.match(/^#\/(?:p|c)\/([^/?#]+)/)
   if (!m) return null
@@ -37,6 +45,31 @@ export function parseCompanySlugFromHash(hash: string): string | null {
     return decodeURIComponent(m[1])
   } catch {
     return m[1]
+  }
+}
+
+export function parseCompanySlugFromLocation(loc: Pick<Location, 'pathname' | 'hash'>): string | null {
+  const pathMatch = loc.pathname.match(/^\/p\/([^/]+)\/?$/)
+  if (pathMatch) {
+    try {
+      return decodeURIComponent(pathMatch[1])
+    } catch {
+      return pathMatch[1]
+    }
+  }
+  return parseCompanySlugFromHash(loc.hash)
+}
+
+/** Redirect old #/p/slug bookmarks to /p/slug/ (needed for separate company PWA install). */
+export function migrateLegacyPortalUrl(): void {
+  if (typeof window === 'undefined') return
+  const fromHash = parseCompanySlugFromHash(window.location.hash)
+  if (!fromHash) return
+  const target = companyPortalPath(fromHash)
+  if (window.location.pathname.replace(/\/$/, '') !== target.replace(/\/$/, '')) {
+    window.history.replaceState(null, '', target)
+  } else if (window.location.hash) {
+    window.history.replaceState(null, '', target)
   }
 }
 

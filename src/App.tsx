@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './lib/auth'
-import { parseCompanySlugFromHash, findCompanyByName } from './lib/companies'
+import { parseCompanySlugFromLocation, findCompanyByName } from './lib/companies'
 import Login from './components/Login'
 import ResearcherDashboard from './components/ResearcherDashboard'
 import CompanyPortal from './components/CompanyPortal'
@@ -10,13 +10,17 @@ export default function App() {
   const { user, logout } = useAuth()
   const [previewCompany, setPreviewCompany] = useState<string | null>(null)
   const [companySlug, setCompanySlug] = useState<string | null>(() =>
-    typeof window !== 'undefined' ? parseCompanySlugFromHash(window.location.hash) : null,
+    typeof window !== 'undefined' ? parseCompanySlugFromLocation(window.location) : null,
   )
 
   useEffect(() => {
-    const onHash = () => setCompanySlug(parseCompanySlugFromHash(window.location.hash))
-    window.addEventListener('hashchange', onHash)
-    return () => window.removeEventListener('hashchange', onHash)
+    const sync = () => setCompanySlug(parseCompanySlugFromLocation(window.location))
+    window.addEventListener('popstate', sync)
+    window.addEventListener('hashchange', sync)
+    return () => {
+      window.removeEventListener('popstate', sync)
+      window.removeEventListener('hashchange', sync)
+    }
   }, [])
 
   // Company-specific portal links are public (their own interface + credentials).

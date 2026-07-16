@@ -50,8 +50,8 @@ export function buildCompanyManifest(slug: string, companyName: string) {
     orientation: 'portrait-primary' as const,
     dir: 'rtl' as const,
     lang: 'ar',
-    start_url: `/#/p/${encodeURIComponent(safeSlug)}`,
-    scope: '/',
+    start_url: `/p/${encodeURIComponent(safeSlug)}/`,
+    scope: `/p/${encodeURIComponent(safeSlug)}/`,
     icons: PWA_ICONS,
   }
 }

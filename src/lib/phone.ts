@@ -36,7 +36,7 @@ export function slugify(raw: string): string {
 export function placeShareUrl(slug: string): string {
   if (!slug.trim()) return ''
   const base = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${base}/#/p/${encodeURIComponent(slug.trim())}`
+  return `${base}/p/${encodeURIComponent(slug.trim())}/`
 }
 
 export function parsePlaceSlugFromHash(hash: string): string | null {

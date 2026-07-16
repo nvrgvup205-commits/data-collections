@@ -3,6 +3,7 @@ import {
   companyManifestPath,
   researcherAppName,
 } from '../../shared/pwa-manifest'
+import { parseCompanySlugFromLocation } from './companies'
 
 export type PwaAppProfile =
   | { kind: 'researcher' }
@@ -59,20 +60,11 @@ export function isStandaloneDisplay(): boolean {
 /** Hide install CTA when this specific app profile is already on screen as a PWA. */
 export function isInstalledForProfile(profile: PwaAppProfile): boolean {
   if (!isStandaloneDisplay()) return false
-  const hash = typeof window !== 'undefined' ? window.location.hash : ''
-  const portalMatch = hash.match(/^#\/(?:p|c)\/([^/?#]+)/)
-  const hashSlug = portalMatch
-    ? (() => {
-        try {
-          return decodeURIComponent(portalMatch[1])
-        } catch {
-          return portalMatch[1]
-        }
-      })()
-    : null
+  const slug =
+    typeof window !== 'undefined' ? parseCompanySlugFromLocation(window.location) : null
 
-  if (profile.kind === 'researcher') return !hashSlug
-  return hashSlug === profile.slug
+  if (profile.kind === 'researcher') return !slug
+  return slug === profile.slug
 }
 
 export { buildResearcherManifest, buildCompanyManifest } from '../../shared/pwa-manifest'
