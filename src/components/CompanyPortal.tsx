@@ -15,6 +15,7 @@ import {
   playNewReportAlert,
 } from '../lib/companies'
 import { telHref, whatsappHref } from '../lib/phone'
+import { googleMapEmbedUrl, googleMapLink } from '../lib/geo'
 import InstallAppButton from './InstallAppButton'
 import type { PwaAppProfile } from '../lib/pwa-manifest'
 import MediaImage from './MediaImage'
@@ -350,6 +351,17 @@ export default function CompanyPortal({
                   <p className="visitor-label">{VISITED_CLIENT_LABEL}</p>
                   <p className="card-activity">{activityLabel(e)}</p>
                   {e.address && <p className="card-line">📍 {e.address}</p>}
+                  {e.lat != null && e.lng != null && (
+                    <a
+                      className="card-line map-open-link"
+                      href={googleMapLink({ lat: e.lat, lng: e.lng })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(ev) => ev.stopPropagation()}
+                    >
+                      🗺️ فتح الموقع في خرائط جوجل
+                    </a>
+                  )}
                   {e.managerName && <p className="card-line">👤 {e.managerName}</p>}
                   {e.managerPhone && (
                     <div className="phone-row" onClick={(ev) => ev.stopPropagation()}>
@@ -453,6 +465,25 @@ export default function CompanyPortal({
                 <div className="detail-full">
                   <dt>ملاحظات العنوان</dt>
                   <dd>{selected.addressNotes}</dd>
+                </div>
+              )}
+              {selected.lat != null && selected.lng != null && (
+                <div className="detail-full map-wrap">
+                  <iframe
+                    className="map-frame"
+                    title="الموقع على الخريطة"
+                    src={googleMapEmbedUrl({ lat: selected.lat, lng: selected.lng })}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                  <a
+                    className="map-link"
+                    href={googleMapLink({ lat: selected.lat, lng: selected.lng })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    فتح في خرائط جوجل
+                  </a>
                 </div>
               )}
               {selected.dealStatus === 'rejected' && (

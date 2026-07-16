@@ -235,6 +235,17 @@ body {
   font-size: 13px;
 }
 
+.map-open-link {
+  display: inline-block;
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.map-open-link:hover {
+  text-decoration: underline;
+}
+
 .card-notes {
   margin: 8px 0 0;
   font-size: 13px;
