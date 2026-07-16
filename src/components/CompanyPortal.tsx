@@ -412,12 +412,13 @@ export default function CompanyPortal({
             role="dialog"
             aria-modal="true"
           >
-            <div className="modal-head">
+            <div className="modal-head report-detail-head">
               <h2>{selected.placeName || 'بدون اسم'}</h2>
               <button className="btn ghost small" onClick={() => setSelected(null)}>
                 إغلاق
               </button>
             </div>
+            <div className="report-detail-body">
             <div className="detail-meta">
               <span className="tag">{sectionName(selected.sectionId)}</span>
               <span className="visitor-label">{VISITED_CLIENT_LABEL}</span>
@@ -518,6 +519,7 @@ export default function CompanyPortal({
                 ))}
               </div>
             )}
+            </div>
           </div>
         </div>
       )}

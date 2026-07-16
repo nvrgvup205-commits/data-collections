@@ -810,7 +810,27 @@ body {
 .report-detail-modal {
   max-width: 640px;
   max-height: min(90vh, 820px);
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.report-detail-head {
+  flex-shrink: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.report-detail-body {
   overflow: auto;
+  padding: 14px 22px 22px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .companies-manager-modal {
