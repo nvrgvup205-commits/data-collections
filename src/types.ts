@@ -76,6 +76,15 @@ export interface Entry {
   updatedAt: number
 }
 
+/** أقدم وقت التقاط صورة مرفقة، أو وقت التحديث إن لم توجد صور. */
+export function photoCaptureTimestamp(entry: Pick<Entry, 'photos' | 'updatedAt'>): number {
+  const captured = (entry.photos ?? [])
+    .map((p) => p.capturedAt)
+    .filter((t) => Number.isFinite(t) && t > 0)
+  if (captured.length) return Math.min(...captured)
+  return entry.updatedAt
+}
+
 export interface AppData {
   sections: Section[]
   entries: Entry[]

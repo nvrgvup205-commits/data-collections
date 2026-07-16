@@ -8,6 +8,7 @@ import {
   VISITED_CLIENT_LABEL,
   dealStatusLabel,
   metStatusLabel,
+  photoCaptureTimestamp,
 } from '../types'
 import { useAuth } from '../lib/auth'
 import {
@@ -426,7 +427,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
                   <p className="card-line time">
-                    🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
+                    🕒 وقت التقاط الصورة الفعلي:{' '}
+                    {new Date(photoCaptureTimestamp(e)).toLocaleString('ar-EG')}
                   </p>
                   <div className="card-actions">
                     <button className="btn ghost small" onClick={() => startEdit(e)}>

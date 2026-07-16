@@ -7,6 +7,7 @@ import {
   VISITED_CLIENT_LABEL,
   dealStatusLabel,
   metStatusLabel,
+  photoCaptureTimestamp,
 } from '../types'
 import { exportExcel, exportPdf } from '../lib/exporters'
 import { fetchPlaces, fetchSections, subscribePlaces } from '../lib/db'
@@ -392,7 +393,8 @@ export default function CompanyPortal({
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
                   <p className="card-line time">
-                    🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
+                    🕒 وقت التقاط الصورة الفعلي:{' '}
+                    {new Date(photoCaptureTimestamp(e)).toLocaleString('ar-EG')}
                   </p>
                   <p className="card-open-hint">اضغط لعرض التفاصيل</p>
                 </article>
@@ -499,8 +501,8 @@ export default function CompanyPortal({
                 </div>
               )}
               <div>
-                <dt>وقت الرفع</dt>
-                <dd>{new Date(selected.updatedAt).toLocaleString('ar-EG')}</dd>
+                <dt>وقت التقاط الصورة الفعلي</dt>
+                <dd>{new Date(photoCaptureTimestamp(selected)).toLocaleString('ar-EG')}</dd>
               </div>
             </dl>
             {selected.photos?.length > 0 && (
