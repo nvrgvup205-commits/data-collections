@@ -208,7 +208,7 @@ export default function CompanyPortal({
   }
 
   const dealStatusClass = (status: DealStatus | undefined) =>
-    status && status !== '' ? `status-${status}` : 'status-unset'
+    status ? `status-${status}` : 'status-unset'
 
   return (
     <div className="portal">
