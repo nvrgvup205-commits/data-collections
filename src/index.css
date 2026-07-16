@@ -909,6 +909,12 @@ body {
   gap: 6px;
 }
 
+.place-grid-audio {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
 .met-badge {
   display: inline-flex;
   align-items: center;
@@ -1307,6 +1313,42 @@ body {
 .audio-note audio {
   height: 40px;
   max-width: 100%;
+}
+
+.portal-audio-note {
+  margin-top: 0;
+}
+
+.portal-audio-note audio {
+  width: 100%;
+  min-height: 44px;
+}
+
+.voice-input-primary {
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.voice-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.voice-stt-details {
+  margin-top: 2px;
+}
+
+.voice-stt-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.voice-stt-details .voice-input {
+  margin-top: 8px;
 }
 
 /* Voice */

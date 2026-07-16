@@ -372,6 +372,7 @@ export default function CompanyPortal({
                       {statusBadge(e.dealStatus)}
                       {metBadge(e.met)}
                     </div>
+                    {e.audioNote && <span className="place-grid-audio" aria-label="يوجد مقطع صوتي">🎙️</span>}
                     <div className="place-grid-footer">
                       <time className="place-grid-time" dateTime={new Date(photoCaptureTimestamp(e)).toISOString()}>
                         {new Date(photoCaptureTimestamp(e)).toLocaleString('ar-EG', {
@@ -486,6 +487,18 @@ export default function CompanyPortal({
                 <div className="detail-full">
                   <dt>ملخص المقابلة</dt>
                   <dd>{selected.meetingNotes}</dd>
+                </div>
+              )}
+              {selected.audioNote && (
+                <div className="detail-full">
+                  <dt>المقطع الصوتي</dt>
+                  <dd>
+                    <div className="audio-note portal-audio-note">
+                      <audio controls preload="metadata" src={selected.audioNote}>
+                        متصفحك لا يدعم تشغيل الصوت.
+                      </audio>
+                    </div>
+                  </dd>
                 </div>
               )}
               <div>

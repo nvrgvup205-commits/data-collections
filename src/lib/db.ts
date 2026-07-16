@@ -157,6 +157,57 @@ interface PlaceExt {
   slug?: string
   placeUsername?: string
   placePassword?: string
+  audioNoteUrl?: string
+}
+
+const AUDIO_PREFIX = 'fr-audio/'
+const MAX_AUDIO_UPLOAD_BYTES = 5 * 1024 * 1024
+
+function audioStoragePath(placeId: string) {
+  return `${AUDIO_PREFIX}${placeId}.webm`
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, b64] = dataUrl.split(',')
+  const mime = header.match(/data:([^;]+)/)?.[1] || 'audio/webm'
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}
+
+async function syncAudioNote(placeId: string, audioNote: string): Promise<string> {
+  const path = audioStoragePath(placeId)
+  const note = audioNote?.trim() ?? ''
+
+  if (!note) {
+    try {
+      await db().storage.from(PHOTO_BUCKET).remove([path])
+    } catch {
+      /* ignore */
+    }
+    return ''
+  }
+
+  if (note.startsWith('http://') || note.startsWith('https://')) {
+    return note
+  }
+
+  if (!note.startsWith('data:')) return ''
+
+  const blob = dataUrlToBlob(note)
+  if (blob.size > MAX_AUDIO_UPLOAD_BYTES) {
+    throw new Error('المقطع الصوتي طويل جدًا (الحد 5 ميجابايت). سجّل مقطعًا أقصر.')
+  }
+
+  const { error } = await db().storage.from(PHOTO_BUCKET).upload(path, blob, {
+    upsert: true,
+    contentType: blob.type || 'audio/webm',
+    cacheControl: '3600',
+  })
+  if (error) throw error
+  const { data } = db().storage.from(PHOTO_BUCKET).getPublicUrl(path)
+  return data.publicUrl
 }
 
 function parseDealStatus(raw: string | null | undefined): DealStatus {
@@ -185,6 +236,7 @@ function packMeetingNotes(notes: string, ext: PlaceExt): string | null {
   if (ext.slug) payload.slug = ext.slug
   if (ext.placeUsername) payload.placeUsername = ext.placeUsername
   if (ext.placePassword) payload.placePassword = ext.placePassword
+  if (ext.audioNoteUrl) payload.audioNoteUrl = ext.audioNoteUrl
   if (!Object.keys(payload).length) return clean || null
   const blob = `${EXT_MARK}${JSON.stringify(payload)}`
   return clean ? `${clean}\n\n${blob}` : blob
@@ -224,7 +276,7 @@ function rowToEntry(r: PlaceRow, photos: PhotoRef[]): Entry {
     slug: r.slug ?? ext.slug ?? '',
     placeUsername: r.place_username ?? ext.placeUsername ?? '',
     placePassword: r.place_password ?? ext.placePassword ?? '',
-    audioNote: '',
+    audioNote: ext.audioNoteUrl ?? '',
     photos,
     targetCompany: r.target_company ?? '',
     createdAt: new Date(r.created_at).getTime(),
@@ -265,6 +317,7 @@ export async function fetchPlaces(): Promise<Entry[]> {
 export async function savePlace(e: Entry): Promise<void> {
   const researcherId = await currentUserId()
   const slug = e.slug.trim()
+  const audioNoteUrl = await syncAudioNote(e.id, e.audioNote)
   // Pack extended fields into meeting_notes so saves work even before
   // deal_status / slug / credentials columns exist on the live DB.
   const meetingNotes = packMeetingNotes(e.meetingNotes, {
@@ -273,6 +326,7 @@ export async function savePlace(e: Entry): Promise<void> {
     slug: slug || undefined,
     placeUsername: e.placeUsername.trim() || undefined,
     placePassword: e.placePassword.trim() || undefined,
+    audioNoteUrl: audioNoteUrl || undefined,
   })
   const row = {
     id: e.id,
@@ -326,6 +380,11 @@ export async function savePlace(e: Entry): Promise<void> {
 export async function deletePlace(id: string, photoPaths: string[]): Promise<void> {
   await db().from('fr_places').delete().eq('id', id) // cascade removes photo rows
   await deletePhotoObjects(photoPaths)
+  try {
+    await db().storage.from(PHOTO_BUCKET).remove([audioStoragePath(id)])
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---------- Realtime ----------
