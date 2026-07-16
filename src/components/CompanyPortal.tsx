@@ -17,6 +17,7 @@ import {
 } from '../lib/companies'
 import { telHref, whatsappHref } from '../lib/phone'
 import InstallAppButton from './InstallAppButton'
+import type { PwaAppProfile } from '../lib/pwa-manifest'
 import MediaImage from './MediaImage'
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
   /** Public company portal: reads snapshot (no researcher session required). */
   publicMode?: boolean
   portalSlug?: string
+  installProfile?: PwaAppProfile
 }
 
 type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'unset' | 'not_met'
@@ -38,6 +40,7 @@ export default function CompanyPortal({
   exitLabel,
   publicMode = false,
   portalSlug,
+  installProfile,
 }: Props) {
   const [entries, setEntries] = useState<Entry[]>([])
   const [sections, setSections] = useState<Section[]>([])
@@ -495,7 +498,15 @@ export default function CompanyPortal({
 
       <footer className="app-footer portal-footer">
         <span>بوابة عرض التقارير — {title}</span>
-        <InstallAppButton placement="footer" />
+        <InstallAppButton
+          placement="footer"
+          profile={
+            installProfile ??
+            (portalSlug
+              ? { kind: 'company', slug: portalSlug, name: company }
+              : { kind: 'researcher' })
+          }
+        />
       </footer>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   companyShareUrl,
   getPortalSession,
@@ -9,6 +9,7 @@ import {
 } from '../lib/companies'
 import CompanyPortal from './CompanyPortal'
 import InstallAppButton from './InstallAppButton'
+import type { PwaAppProfile } from '../lib/pwa-manifest'
 
 interface Props {
   slug: string
@@ -22,6 +23,11 @@ export default function CompanyPortalGate({ slug }: Props) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const companyProfile = useMemo<PwaAppProfile>(
+    () => ({ kind: 'company', slug, name: meta?.name || slug }),
+    [slug, meta?.name],
+  )
 
   useEffect(() => {
     let active = true
@@ -122,7 +128,7 @@ export default function CompanyPortalGate({ slug }: Props) {
             </button>
           </form>
           <div className="login-install">
-            <InstallAppButton />
+            <InstallAppButton profile={companyProfile} />
           </div>
         </div>
       </div>
@@ -137,6 +143,7 @@ export default function CompanyPortalGate({ slug }: Props) {
       exitLabel="خروج"
       publicMode
       portalSlug={meta.slug}
+      installProfile={companyProfile}
     />
   )
 }

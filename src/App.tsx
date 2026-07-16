@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './lib/auth'
-import { parseCompanySlugFromHash } from './lib/companies'
+import { parseCompanySlugFromHash, findCompanyByName } from './lib/companies'
 import Login from './components/Login'
 import ResearcherDashboard from './components/ResearcherDashboard'
 import CompanyPortal from './components/CompanyPortal'
@@ -29,12 +29,18 @@ export default function App() {
   }
 
   if (user.role === 'company') {
+    const portalMeta = findCompanyByName(user.company || '')
+    const installProfile = portalMeta
+      ? ({ kind: 'company', slug: portalMeta.slug, name: portalMeta.name } as const)
+      : ({ kind: 'researcher' } as const)
     return (
       <CompanyPortal
         company={user.company || ''}
         title={user.name}
         onExit={() => void logout()}
         exitLabel="خروج"
+        portalSlug={portalMeta?.slug}
+        installProfile={installProfile}
       />
     )
   }
