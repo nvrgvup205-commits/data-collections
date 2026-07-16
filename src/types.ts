@@ -13,6 +13,39 @@ export interface PhotoRef {
   url?: string // cloud: public URL for display
 }
 
+/** نتيجة الزيارة / موقف العميل من الفكرة */
+export type DealStatus = 'purchased' | 'rejected' | 'objections' | 'follow_up' | ''
+
+export const DEAL_STATUS_OPTIONS: { value: Exclude<DealStatus, ''>; label: string }[] = [
+  { value: 'purchased', label: 'مشتري بالفعل' },
+  { value: 'objections', label: 'عنده اعتراضات يمكن حلها' },
+  { value: 'rejected', label: 'رافض الفكرة تماما' },
+  { value: 'follow_up', label: 'يعاود التواصل معها أو زيارتها' },
+]
+
+export function dealStatusLabel(status: DealStatus | undefined): string {
+  if (!status) return ''
+  return DEAL_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? ''
+}
+
+/** حالة المقابلة / التواصل */
+export type MetStatus = 'yes' | 'no' | 'phone_answered' | 'phone_no_answer' | ''
+
+export const MET_STATUS_OPTIONS: { value: Exclude<MetStatus, ''>; label: string }[] = [
+  { value: 'yes', label: 'تمت المقابلة' },
+  { value: 'no', label: 'لم تتم المقابلة' },
+  { value: 'phone_answered', label: 'تم التواصل هاتفيًا — ورد' },
+  { value: 'phone_no_answer', label: 'تم التواصل هاتفيًا — لم يرد' },
+]
+
+export function metStatusLabel(status: MetStatus | undefined): string {
+  if (!status) return 'المقابلة غير محددة'
+  return MET_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? 'المقابلة غير محددة'
+}
+
+/** تسمية العميل بعد الزيارة الميدانية */
+export const VISITED_CLIENT_LABEL = 'عميل تمت زيارته'
+
 export interface Entry {
   id: Id
   sectionId: Id
@@ -25,13 +58,31 @@ export interface Entry {
   managerPhone: string
   activityType: string
   customActivity: string
-  met: 'yes' | 'no' | ''
+  met: MetStatus
   meetingNotes: string
+  /** موقف العميل: مشتري / اعتراضات / رافض / يعاد التواصل */
+  dealStatus: DealStatus
+  /** أسباب الرفض (عند اختيار رافض الفكرة تماما) */
+  rejectionReason: string
+  /** رابط تتبع مختصر يُرسل للشركة */
+  slug: string
+  /** بيانات دخول المكان (للشركة) */
+  placeUsername: string
+  placePassword: string
   audioNote: string
   photos: PhotoRef[]
   targetCompany: string
   createdAt: number
   updatedAt: number
+}
+
+/** أقدم وقت التقاط صورة مرفقة، أو وقت التحديث إن لم توجد صور. */
+export function photoCaptureTimestamp(entry: Pick<Entry, 'photos' | 'updatedAt'>): number {
+  const captured = (entry.photos ?? [])
+    .map((p) => p.capturedAt)
+    .filter((t) => Number.isFinite(t) && t > 0)
+  if (captured.length) return Math.min(...captured)
+  return entry.updatedAt
 }
 
 export interface AppData {

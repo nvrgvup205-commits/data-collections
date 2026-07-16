@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { ACTIVITY_TYPES, Entry, PhotoRef, Section } from '../types'
+import {
+  ACTIVITY_TYPES,
+  DEAL_STATUS_OPTIONS,
+  Entry,
+  MET_STATUS_OPTIONS,
+  MetStatus,
+  PhotoRef,
+  Section,
+} from '../types'
 import { reverseGeocode } from '../lib/geo'
 import { deleteBlob } from '../lib/media'
+import {
+  companyShareUrl,
+  findCompanyByName,
+  saveCompanyMeta,
+} from '../lib/companies'
+import { slugify } from '../lib/phone'
 import { uid } from '../storage'
 import InteractiveMap from './InteractiveMap'
 import VoiceInput from './VoiceInput'
@@ -12,7 +26,7 @@ interface Props {
   companies: string[]
   initial?: Entry
   defaultSectionId: string
-  onSave: (entry: Entry) => void
+  onSave: (entry: Entry) => void | Promise<void>
   onCancel: () => void
 }
 
@@ -35,11 +49,32 @@ function blankEntry(sectionId: string): Entry {
     customActivity: '',
     met: '',
     meetingNotes: '',
+    dealStatus: '',
+    rejectionReason: '',
+    slug: '',
+    placeUsername: '',
+    placePassword: '',
     audioNote: '',
     photos: [],
     targetCompany: '',
     createdAt: now,
     updatedAt: now,
+  }
+}
+
+function normalizeInitial(initial: Entry | undefined, defaultSectionId: string): Entry {
+  if (!initial) return blankEntry(defaultSectionId)
+  const companyMeta = initial.targetCompany
+    ? findCompanyByName(initial.targetCompany)
+    : undefined
+  return {
+    ...blankEntry(initial.sectionId || defaultSectionId),
+    ...initial,
+    dealStatus: initial.dealStatus ?? '',
+    rejectionReason: initial.rejectionReason ?? '',
+    slug: companyMeta?.slug || initial.slug || '',
+    placeUsername: companyMeta?.username || initial.placeUsername || '',
+    placePassword: companyMeta?.password || initial.placePassword || '',
   }
 }
 
@@ -51,10 +86,10 @@ export default function EntryForm({
   onSave,
   onCancel,
 }: Props) {
-  const [entry, setEntry] = useState<Entry>(
-    initial ?? blankEntry(defaultSectionId),
-  )
+  const [entry, setEntry] = useState<Entry>(() => normalizeInitial(initial, defaultSectionId))
   const [geoMsg, setGeoMsg] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [companyNewMode, setCompanyNewMode] = useState<boolean>(
     !!(initial?.targetCompany && !companies.includes(initial.targetCompany)),
   )
@@ -68,6 +103,30 @@ export default function EntryForm({
 
   const update = <K extends keyof Entry>(key: K, value: Entry[K]) => {
     setEntry((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const applyCompanyMeta = (companyName: string) => {
+    const meta = findCompanyByName(companyName)
+    if (meta) {
+      setEntry((prev) => ({
+        ...prev,
+        targetCompany: companyName,
+        slug: meta.slug,
+        placeUsername: meta.username,
+        placePassword: meta.password,
+      }))
+    } else {
+      update('targetCompany', companyName)
+    }
+  }
+
+  const setMet = (value: MetStatus) => {
+    setEntry((prev) => ({
+      ...prev,
+      met: value,
+      // لم يرد هاتفيًا → تصنيف تلقائي: يعاد التواصل/الزيارة
+      dealStatus: value === 'phone_no_answer' ? 'follow_up' : prev.dealStatus,
+    }))
   }
 
   const handleCoords = (lat: number, lng: number) => {
@@ -108,13 +167,42 @@ export default function EntryForm({
     setEntry((prev) => ({ ...prev, audioNote: dataUrl }))
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!entry.placeName.trim()) {
       alert('من فضلك اكتب اسم المكان أولًا.')
       return
     }
-    onSave({ ...entry, updatedAt: Date.now() })
+    if (!entry.targetCompany.trim()) {
+      alert('اختر الشركة المقدَّم إليها التقرير.')
+      return
+    }
+    const slug = slugify(entry.slug) || slugify(entry.targetCompany)
+    if (!slug || !entry.placeUsername.trim() || !entry.placePassword.trim()) {
+      alert('أدخل slug واسم مستخدم وكلمة مرور لإنشاء بوابة الشركة.')
+      return
+    }
+    setSaving(true)
+    try {
+      const meta = await saveCompanyMeta({
+        name: entry.targetCompany.trim(),
+        slug,
+        username: entry.placeUsername,
+        password: entry.placePassword,
+      })
+      await onSave({
+        ...entry,
+        targetCompany: meta.name,
+        slug: meta.slug,
+        placeUsername: meta.username,
+        placePassword: meta.password,
+        updatedAt: Date.now(),
+      })
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const appendMeetingNote = (text: string) => {
@@ -124,8 +212,30 @@ export default function EntryForm({
     }))
   }
 
+  const shareUrl = companyShareUrl(slugify(entry.slug) || entry.slug)
+  const copyShareLink = async () => {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      prompt('انسخ الرابط:', shareUrl)
+    }
+  }
+
+  const uniqueSections = (() => {
+    const seen = new Set<string>()
+    return sections.filter((s) => {
+      const key = s.name.trim()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  })()
+
   return (
-    <form className="entry-form" onSubmit={submit}>
+    <form className="entry-form" onSubmit={(e) => void submit(e)}>
       <div className="form-grid">
         <label className="field">
           <span>القسم</span>
@@ -133,7 +243,7 @@ export default function EntryForm({
             value={entry.sectionId}
             onChange={(e) => update('sectionId', e.target.value)}
           >
-            {sections.map((s) => (
+            {uniqueSections.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
@@ -159,10 +269,16 @@ export default function EntryForm({
           onChange={(e) => {
             if (e.target.value === '__new__') {
               setCompanyNewMode(true)
-              update('targetCompany', '')
+              setEntry((prev) => ({
+                ...prev,
+                targetCompany: '',
+                slug: '',
+                placeUsername: '',
+                placePassword: '',
+              }))
             } else {
               setCompanyNewMode(false)
-              update('targetCompany', e.target.value)
+              applyCompanyMeta(e.target.value)
             }
           }}
         >
@@ -179,12 +295,72 @@ export default function EntryForm({
             type="text"
             className="mt-8"
             value={entry.targetCompany}
-            onChange={(e) => update('targetCompany', e.target.value)}
+            onChange={(e) => {
+              const name = e.target.value
+              setEntry((prev) => ({
+                ...prev,
+                targetCompany: name,
+                slug: prev.slug || slugify(name),
+              }))
+            }}
             placeholder="اكتب اسم الشركة الجديدة"
             autoFocus
           />
         )}
       </label>
+
+      {entry.targetCompany.trim() && (
+        <>
+          <div className="form-grid">
+            <label className="field">
+              <span>Slug رابط بوابة الشركة</span>
+              <input
+                type="text"
+                dir="ltr"
+                value={entry.slug}
+                onChange={(e) => update('slug', e.target.value)}
+                onBlur={() => {
+                  const cleaned = slugify(entry.slug)
+                  if (cleaned && cleaned !== entry.slug) update('slug', cleaned)
+                }}
+                placeholder="hanqoul"
+              />
+            </label>
+            <label className="field">
+              <span>مستخدم بوابة الشركة</span>
+              <input
+                type="text"
+                dir="ltr"
+                autoComplete="off"
+                value={entry.placeUsername}
+                onChange={(e) => update('placeUsername', e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>كلمة مرور بوابة الشركة</span>
+              <input
+                type="text"
+                dir="ltr"
+                autoComplete="off"
+                value={entry.placePassword}
+                onChange={(e) => update('placePassword', e.target.value)}
+              />
+            </label>
+          </div>
+
+          {shareUrl && (
+            <div className="slug-share">
+              <span className="slug-share-label">رابط بوابة الشركة (أرسله لهم للمتابعة لايف):</span>
+              <code className="slug-share-url" dir="ltr">
+                {shareUrl}
+              </code>
+              <button type="button" className="btn secondary small" onClick={() => void copyShareLink()}>
+                {copied ? 'تم النسخ ✓' : 'نسخ الرابط'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       <div className="field">
         <span>صورة مدخل المكان (يظهر عليها وقت وتاريخ التصوير)</span>
@@ -267,38 +443,79 @@ export default function EntryForm({
       </div>
 
       <div className="field">
-        <span>هل قابلت المسؤول؟</span>
-        <div className="radio-row">
-          <label className={`radio-pill ${entry.met === 'yes' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="met"
-              checked={entry.met === 'yes'}
-              onChange={() => update('met', 'yes')}
-            />
-            نعم، قابلته
-          </label>
-          <label className={`radio-pill ${entry.met === 'no' ? 'active' : ''}`}>
-            <input
-              type="radio"
-              name="met"
-              checked={entry.met === 'no'}
-              onChange={() => update('met', 'no')}
-            />
-            لا، لم أقابله
-          </label>
+        <span>حالة المقابلة / التواصل</span>
+        <div className="radio-row deal-status-row">
+          {MET_STATUS_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`radio-pill ${entry.met === opt.value ? 'active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="met"
+                checked={entry.met === opt.value}
+                onChange={() => setMet(opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+        {entry.met === 'phone_no_answer' && (
+          <p className="hint muted">
+            تم تعيين التصنيف تلقائيًا: يعاود التواصل معها أو زيارتها
+          </p>
+        )}
+      </div>
+
+      <div className="field">
+        <span>تصنيف نتيجة الزيارة (يظهر للباحث والشركة)</span>
+        <div className="radio-row deal-status-row">
+          {DEAL_STATUS_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`radio-pill deal-${opt.value} ${entry.dealStatus === opt.value ? 'active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="dealStatus"
+                checked={entry.dealStatus === opt.value}
+                onChange={() => update('dealStatus', opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
         </div>
       </div>
 
-      {entry.met === 'yes' && (
+      {entry.dealStatus === 'rejected' && (
+        <label className="field">
+          <span>أسباب الرفض</span>
+          <textarea
+            rows={3}
+            value={entry.rejectionReason}
+            onChange={(e) => update('rejectionReason', e.target.value)}
+            placeholder="اكتب أسباب رفض الفكرة..."
+          />
+        </label>
+      )}
+
+      {(entry.met === 'yes' || entry.met === 'phone_answered') && (
         <div className="field">
-          <span>ماذا حدث في المقابلة؟</span>
+          <span>
+            {entry.met === 'phone_answered'
+              ? 'ملاحظات الباحث (بعد الرد هاتفيًا)'
+              : 'ماذا حدث في المقابلة؟'}
+          </span>
           <VoiceInput onAppendText={appendMeetingNote} onAudioNote={handleAudioNote} />
           <textarea
             rows={4}
             value={entry.meetingNotes}
             onChange={(e) => update('meetingNotes', e.target.value)}
-            placeholder="اكتب ملخص المقابلة أو استخدم الأدوات الصوتية بالأعلى..."
+            placeholder={
+              entry.met === 'phone_answered'
+                ? 'اكتب ملاحظاتك كباحث عن المكالمة...'
+                : 'اكتب ملخص المقابلة أو استخدم الأدوات الصوتية بالأعلى...'
+            }
           />
           {entry.audioNote && (
             <div className="audio-note">
@@ -316,8 +533,8 @@ export default function EntryForm({
       )}
 
       <div className="form-actions">
-        <button type="submit" className="btn primary">
-          حفظ البيانات
+        <button type="submit" className="btn primary" disabled={saving}>
+          {saving ? 'جارٍ الحفظ...' : 'حفظ البيانات'}
         </button>
         <button type="button" className="btn ghost" onClick={onCancel}>
           إلغاء

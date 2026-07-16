@@ -47,9 +47,48 @@ create table if not exists public.fr_places (
   custom_activity text,
   met text,
   meeting_notes text,
+  -- موقف العميل من الفكرة: purchased | rejected | objections
+  deal_status text check (
+    deal_status is null
+    or deal_status in ('purchased', 'rejected', 'objections', 'follow_up')
+  ),
+  rejection_reason text,
+  slug text,
+  place_username text,
+  place_password text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Safe re-run: add new columns if the table already existed without them
+alter table public.fr_places
+  add column if not exists deal_status text;
+alter table public.fr_places
+  add column if not exists rejection_reason text;
+alter table public.fr_places
+  add column if not exists slug text;
+alter table public.fr_places
+  add column if not exists place_username text;
+alter table public.fr_places
+  add column if not exists place_password text;
+
+do $$
+begin
+  alter table public.fr_places
+    drop constraint if exists fr_places_deal_status_check;
+  alter table public.fr_places
+    add constraint fr_places_deal_status_check
+    check (
+      deal_status is null
+      or deal_status in ('purchased', 'rejected', 'objections', 'follow_up')
+    );
+exception when others then null;
+end $$;
+
+-- Unique slug when set (allows multiple NULLs / empty)
+create unique index if not exists fr_places_slug_unique
+  on public.fr_places (slug)
+  where slug is not null and slug <> '';
 
 -- ---------------------------------------------------------------------
 -- 4) Photos metadata (files live in Storage bucket 'fr-place-photos')
@@ -60,6 +99,31 @@ create table if not exists public.fr_place_photos (
   storage_path text not null,
   captured_at timestamptz not null default now()
 );
+
+-- ---------------------------------------------------------------------
+-- 4b) Companies (dedicated portals: slug + credentials set by researcher)
+-- ---------------------------------------------------------------------
+create table if not exists public.fr_companies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null,
+  username text not null,
+  password text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (slug),
+  unique (name)
+);
+
+alter table public.fr_companies enable row level security;
+
+drop policy if exists fr_companies_researcher on public.fr_companies;
+create policy fr_companies_researcher on public.fr_companies
+  for all using (public.fr_user_role() = 'researcher')
+  with check (public.fr_user_role() = 'researcher');
+
+-- Anonymous / company clients read portal files from Storage; this table
+-- is managed by researchers only.
 
 -- ---------------------------------------------------------------------
 -- 5) Helper functions (prefixed to avoid clashing with built-ins)

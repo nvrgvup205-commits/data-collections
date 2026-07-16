@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Entry, KNOWN_COMPANIES, Section, SECTION_COLORS } from '../types'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  DealStatus,
+  Entry,
+  KNOWN_COMPANIES,
+  Section,
+  SECTION_COLORS,
+  VISITED_CLIENT_LABEL,
+  dealStatusLabel,
+  metStatusLabel,
+  photoCaptureTimestamp,
+} from '../types'
 import { useAuth } from '../lib/auth'
 import {
   addSection as addSectionCloud,
@@ -9,11 +19,21 @@ import {
   savePlace,
   subscribePlaces,
 } from '../lib/db'
+import {
+  companyShareUrl,
+  findCompanyByName,
+  listLocalCompanies,
+  syncCompanyPortalPlaces,
+} from '../lib/companies'
+import { telHref, whatsappHref } from '../lib/phone'
 import EntryForm from './EntryForm'
 import ExportPanel from './ExportPanel'
+import CompaniesManager from './CompaniesManager'
+import InstallAppButton from './InstallAppButton'
 import MediaImage from './MediaImage'
 
 type View = 'list' | 'form'
+type StatusFilter = 'all' | Exclude<DealStatus, ''> | 'not_met'
 
 interface Props {
   onPreviewCompany: (company: string) => void
@@ -26,15 +46,12 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const [loading, setLoading] = useState(true)
   const [activeSection, setActiveSection] = useState<string>('all')
   const [activeCompany, setActiveCompany] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [view, setView] = useState<View>('list')
   const [editing, setEditing] = useState<Entry | undefined>(undefined)
   const [showExport, setShowExport] = useState(false)
+  const [showCompanies, setShowCompanies] = useState(false)
   const [search, setSearch] = useState('')
-
-  const refreshEntries = useCallback(async () => {
-    const p = await fetchPlaces()
-    setEntries(p)
-  }, [])
 
   useEffect(() => {
     let active = true
@@ -63,6 +80,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
 
   const companies = useMemo(() => {
     const set = new Set<string>(KNOWN_COMPANIES)
+    for (const c of listLocalCompanies()) set.add(c.name)
     entries.forEach((e) => {
       const c = e.targetCompany?.trim()
       if (c) set.add(c)
@@ -70,11 +88,22 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))
   }, [entries])
 
+  const statusCounts = useMemo(() => {
+    const purchased = entries.filter((e) => e.dealStatus === 'purchased').length
+    const objections = entries.filter((e) => e.dealStatus === 'objections').length
+    const rejected = entries.filter((e) => e.dealStatus === 'rejected').length
+    const followUp = entries.filter((e) => e.dealStatus === 'follow_up').length
+    const notMet = entries.filter((e) => e.met === 'no').length
+    return { total: entries.length, purchased, objections, rejected, followUp, notMet }
+  }, [entries])
+
   const filteredEntries = useMemo(() => {
     let list = [...entries].sort((a, b) => b.updatedAt - a.updatedAt)
     if (activeSection !== 'all') list = list.filter((e) => e.sectionId === activeSection)
     if (activeCompany !== 'all')
       list = list.filter((e) => (e.targetCompany?.trim() || '') === activeCompany)
+    if (statusFilter === 'not_met') list = list.filter((e) => e.met === 'no')
+    else if (statusFilter !== 'all') list = list.filter((e) => e.dealStatus === statusFilter)
     const q = search.trim().toLowerCase()
     if (q) {
       list = list.filter(
@@ -82,11 +111,14 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           e.placeName.toLowerCase().includes(q) ||
           e.managerName.toLowerCase().includes(q) ||
           e.address.toLowerCase().includes(q) ||
-          (e.targetCompany || '').toLowerCase().includes(q),
+          (e.targetCompany || '').toLowerCase().includes(q) ||
+          (e.slug || '').toLowerCase().includes(q) ||
+          metStatusLabel(e.met).includes(q) ||
+          dealStatusLabel(e.dealStatus).includes(q),
       )
     }
     return list
-  }, [entries, activeSection, activeCompany, search])
+  }, [entries, activeSection, activeCompany, statusFilter, search])
 
   const sectionName = (id: string) => sections.find((s) => s.id === id)?.name ?? '-'
 
@@ -102,7 +134,11 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const saveEntry = async (entry: Entry) => {
     try {
       await savePlace(entry)
-      await refreshEntries()
+      const latest = await fetchPlaces()
+      setEntries(latest)
+      if (entry.targetCompany.trim()) {
+        await syncCompanyPortalPlaces(entry.targetCompany, latest)
+      }
     } catch (e) {
       alert('تعذّر حفظ التقرير: ' + (e as Error).message)
       return
@@ -116,7 +152,11 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
     const target = entries.find((e) => e.id === id)
     try {
       await deletePlace(id, (target?.photos ?? []).map((p) => p.id))
-      await refreshEntries()
+      const latest = await fetchPlaces()
+      setEntries(latest)
+      if (target?.targetCompany?.trim()) {
+        await syncCompanyPortalPlaces(target.targetCompany, latest)
+      }
     } catch (e) {
       alert('تعذّر الحذف: ' + (e as Error).message)
     }
@@ -125,10 +165,17 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
   const addSection = async () => {
     const name = prompt('اسم القسم الجديد (مثال: عيادات، صيدليات...)')
     if (!name || !name.trim()) return
+    if (sections.some((s) => s.name.trim() === name.trim())) {
+      alert('هذا القسم موجود مسبقًا.')
+      return
+    }
     const color = SECTION_COLORS[sections.length % SECTION_COLORS.length]
     try {
       const s = await addSectionCloud(name.trim(), color)
-      setSections((prev) => [...prev, s])
+      setSections((prev) => {
+        if (prev.some((x) => x.name.trim() === s.name.trim())) return prev
+        return [...prev, s]
+      })
     } catch (e) {
       alert('تعذّرت إضافة القسم: ' + (e as Error).message)
     }
@@ -148,6 +195,10 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           </div>
         </div>
         <div className="header-actions">
+          <InstallAppButton />
+          <button className="btn secondary" onClick={() => setShowCompanies(true)}>
+            بوابات الشركات
+          </button>
           <button className="btn secondary" onClick={() => setShowExport(true)}>
             تصدير PDF / Excel
           </button>
@@ -168,6 +219,57 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
         </div>
       ) : view === 'list' ? (
         <>
+          <section className="stats-row filter-stats">
+            <button
+              type="button"
+              className={`stat-card clickable ${statusFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('all')}
+            >
+              <span className="stat-num">{statusCounts.total}</span>
+              <span className="stat-label">إجمالي الأماكن</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card ok clickable ${statusFilter === 'purchased' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('purchased')}
+            >
+              <span className="stat-num">{statusCounts.purchased}</span>
+              <span className="stat-label">مشتري بالفعل</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card amber clickable ${statusFilter === 'objections' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('objections')}
+            >
+              <span className="stat-num">{statusCounts.objections}</span>
+              <span className="stat-label">اعتراضات يمكن حلها</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card warn clickable ${statusFilter === 'rejected' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('rejected')}
+            >
+              <span className="stat-num">{statusCounts.rejected}</span>
+              <span className="stat-label">رافض الفكرة تماما</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card follow clickable ${statusFilter === 'follow_up' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('follow_up')}
+            >
+              <span className="stat-num">{statusCounts.followUp}</span>
+              <span className="stat-label">يعاد التواصل / الزيارة</span>
+            </button>
+            <button
+              type="button"
+              className={`stat-card muted-stat clickable ${statusFilter === 'not_met' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('not_met')}
+            >
+              <span className="stat-num">{statusCounts.notMet}</span>
+              <span className="stat-label">لم تتم المقابلة</span>
+            </button>
+          </section>
+
           <div className="sections-bar">
             <button
               className={`chip ${activeSection === 'all' ? 'active' : ''}`}
@@ -255,6 +357,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                     <h3>{e.placeName || 'بدون اسم'}</h3>
                     <span className="tag">{sectionName(e.sectionId)}</span>
                   </div>
+                  <p className="visitor-label">{VISITED_CLIENT_LABEL}</p>
                   <p className="card-activity">
                     {e.activityType === 'أخرى' && e.customActivity
                       ? e.customActivity
@@ -279,22 +382,53 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
                   {e.address && <p className="card-line">📍 {e.address}</p>}
                   {e.managerName && <p className="card-line">👤 {e.managerName}</p>}
                   {e.managerPhone && (
-                    <p className="card-line" dir="ltr">
-                      📞 {e.managerPhone}
-                    </p>
+                    <div className="phone-row">
+                      <span className="card-line phone-num" dir="ltr">
+                        📞 {e.managerPhone}
+                      </span>
+                      <div className="phone-actions">
+                        <a className="btn secondary small" href={telHref(e.managerPhone)}>
+                          اتصال
+                        </a>
+                        <a
+                          className="btn whatsapp small"
+                          href={whatsappHref(e.managerPhone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          واتساب
+                        </a>
+                      </div>
+                    </div>
                   )}
+                  <p className="card-line">📞 {metStatusLabel(e.met)}</p>
                   <p className="card-line">
-                    {e.met === 'yes'
-                      ? '✅ تمت المقابلة'
-                      : e.met === 'no'
-                        ? '⛔ لم تتم المقابلة'
-                        : '➖ المقابلة غير محددة'}
+                    {e.dealStatus ? (
+                      <span className={`deal-badge deal-${e.dealStatus}`}>
+                        {dealStatusLabel(e.dealStatus)}
+                      </span>
+                    ) : (
+                      <span className="deal-badge unset">بدون تصنيف</span>
+                    )}
                   </p>
-                  {e.met === 'yes' && e.meetingNotes && (
+                  {e.dealStatus === 'rejected' && e.rejectionReason && (
+                    <p className="card-notes">سبب الرفض: {e.rejectionReason}</p>
+                  )}
+                  {(() => {
+                    const meta = findCompanyByName(e.targetCompany)
+                    const link = meta ? companyShareUrl(meta.slug) : ''
+                    return link ? (
+                      <p className="card-line slug-line" dir="ltr">
+                        🔗 بوابة الشركة: {link}
+                      </p>
+                    ) : null
+                  })()}
+                  {(e.met === 'yes' || e.met === 'phone_answered') && e.meetingNotes && (
                     <p className="card-notes">{e.meetingNotes}</p>
                   )}
                   <p className="card-line time">
-                    🕒 وقت الرفع: {new Date(e.updatedAt).toLocaleString('ar-EG')}
+                    🕒 وقت التقاط الصورة الفعلي:{' '}
+                    {new Date(photoCaptureTimestamp(e)).toLocaleString('ar-EG')}
                   </p>
                   <div className="card-actions">
                     <button className="btn ghost small" onClick={() => startEdit(e)}>
@@ -335,6 +469,8 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           onClose={() => setShowExport(false)}
         />
       )}
+
+      {showCompanies && <CompaniesManager onClose={() => setShowCompanies(false)} />}
 
       <footer className="app-footer">
         <span>البيانات محفوظة في السحابة (Supabase) وتتحدّث لحظيًا.</span>

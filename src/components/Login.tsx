@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
+import InstallAppButton from './InstallAppButton'
 
 export default function Login() {
   const { login, loading } = useAuth()
@@ -15,11 +16,6 @@ export default function Login() {
     } catch (err) {
       setError((err as Error).message)
     }
-  }
-
-  const fillDemo = (u: string, p: string) => {
-    setUsername(u)
-    setPassword(p)
   }
 
   return (
@@ -38,7 +34,6 @@ export default function Login() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="مثال: 1111"
               autoComplete="username"
             />
           </label>
@@ -48,7 +43,6 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••"
               autoComplete="current-password"
             />
           </label>
@@ -60,19 +54,8 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="login-demo">
-          <p className="muted">حسابات الدخول (اضغط للتعبئة):</p>
-          <div className="demo-chips">
-            <button className="chip" onClick={() => fillDemo('1111', '111111')}>
-              باحث — 1111 / 111111
-            </button>
-            <button className="chip" onClick={() => fillDemo('2222', '222222')}>
-              سعودي تريند — 2222 / 222222
-            </button>
-            <button className="chip" onClick={() => fillDemo('3333', '333333')}>
-              نخبة التسويق — 3333 / 333333
-            </button>
-          </div>
+        <div className="login-install">
+            <InstallAppButton />
         </div>
       </div>
     </div>

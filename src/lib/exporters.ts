@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { Entry, Section } from '../types'
+import { Entry, Section, dealStatusLabel, metStatusLabel } from '../types'
 import { getBlob, blobToDataUrl } from './media'
 
 export interface ExportMeta {
@@ -58,7 +58,12 @@ export function exportExcel(
     'الإحداثيات': e.lat != null && e.lng != null ? `${e.lat}, ${e.lng}` : '',
     'اسم المدير': e.managerName,
     'رقم الجوال': e.managerPhone,
-    'تمت المقابلة؟': e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : '',
+    'تمت المقابلة؟': metStatusLabel(e.met),
+    'التصنيف': dealStatusLabel(e.dealStatus) || 'بدون تصنيف',
+    'أسباب الرفض': e.rejectionReason || '',
+    'Slug': e.slug || '',
+    'اسم المستخدم': e.placeUsername || '',
+    'كلمة المرور': e.placePassword || '',
     'ملخص المقابلة': e.meetingNotes,
     'عدد الصور': e.photos?.length ?? 0,
     'التاريخ': new Date(e.createdAt).toLocaleString('ar-EG'),
@@ -68,6 +73,7 @@ export function exportExcel(
   ws['!cols'] = [
     { wch: 4 }, { wch: 22 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 32 },
     { wch: 22 }, { wch: 20 }, { wch: 18 }, { wch: 16 }, { wch: 12 },
+    { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
     { wch: 40 }, { wch: 9 }, { wch: 20 },
   ]
   const wb = XLSX.utils.book_new()
@@ -106,8 +112,7 @@ function buildReportHtml(
 
   const cards = entries
     .map((e, i) => {
-      const met =
-        e.met === 'yes' ? 'نعم' : e.met === 'no' ? 'لا' : 'غير محدد'
+      const met = metStatusLabel(e.met)
       const coords =
         e.lat != null && e.lng != null ? `${e.lat.toFixed(6)}, ${e.lng.toFixed(6)}` : '-'
       const photoImgs = (e.photos ?? [])
@@ -135,6 +140,11 @@ function buildReportHtml(
           ${row('اسم المدير', e.managerName)}
           ${row('رقم الجوال', e.managerPhone)}
           ${row('تمت المقابلة؟', met)}
+          ${row('التصنيف', dealStatusLabel(e.dealStatus) || 'بدون تصنيف')}
+          ${row('أسباب الرفض', e.rejectionReason)}
+          ${row('Slug', e.slug)}
+          ${row('اسم المستخدم', e.placeUsername)}
+          ${row('كلمة المرور', e.placePassword)}
           ${row('ملخص المقابلة', e.meetingNotes)}
         </table>
         ${photosBlock}
