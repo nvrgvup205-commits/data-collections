@@ -205,7 +205,6 @@ export default function CompanyPortal({
           </div>
         </div>
         <div className="header-actions">
-          <InstallAppButton compact />
           <button className="btn secondary" onClick={downloadExcel} disabled={busy || !visible.length}>
             تصدير Excel
           </button>
@@ -494,8 +493,9 @@ export default function CompanyPortal({
         </div>
       )}
 
-      <footer className="app-footer">
+      <footer className="app-footer portal-footer">
         <span>بوابة عرض التقارير — {title}</span>
+        <InstallAppButton placement="footer" />
       </footer>
     </div>
   )

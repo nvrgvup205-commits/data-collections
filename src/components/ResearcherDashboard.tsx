@@ -194,7 +194,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           </div>
         </div>
         <div className="header-actions">
-          <InstallAppButton compact />
+          <InstallAppButton />
           <button className="btn secondary" onClick={() => setShowCompanies(true)}>
             بوابات الشركات
           </button>

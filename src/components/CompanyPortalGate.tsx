@@ -122,7 +122,7 @@ export default function CompanyPortalGate({ slug }: Props) {
             </button>
           </form>
           <div className="login-install">
-            <InstallAppButton compact />
+            <InstallAppButton />
           </div>
         </div>
       </div>

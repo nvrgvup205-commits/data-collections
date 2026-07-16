@@ -1265,6 +1265,7 @@ body {
   }
   .header-actions .btn {
     flex: 1;
+    min-width: 0;
   }
   .install-app-actions {
     width: 100%;
@@ -1273,6 +1274,9 @@ body {
   .install-app-actions .install-platform {
     width: 100%;
     justify-content: center;
+  }
+  .install-app-trigger {
+    flex: 0 0 auto;
   }
   .brand h1 {
     font-size: 19px;
@@ -1292,15 +1296,76 @@ body {
 }
 
 /* PWA install */
+.install-app-backdrop {
+  z-index: 9999;
+}
+
+.install-app-modal {
+  max-width: 520px;
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+}
+
+.install-app-modal-head {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.install-app-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.install-app-trigger img {
+  border-radius: 5px;
+}
+
+.portal-header .install-app-trigger {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.75);
+  color: var(--primary);
+}
+
+.install-app-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.install-app-footer-label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.portal-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .install-app-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}
-
-.install-app-actions.compact {
-  gap: 6px;
+  justify-content: center;
 }
 
 .install-platform {
@@ -1347,10 +1412,6 @@ body {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px dashed var(--border);
-}
-
-.install-app-modal {
-  max-width: 520px;
 }
 
 .install-app-brand {

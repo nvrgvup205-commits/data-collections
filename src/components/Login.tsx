@@ -55,7 +55,7 @@ export default function Login() {
         </form>
 
         <div className="login-install">
-          <InstallAppButton compact />
+            <InstallAppButton />
         </div>
       </div>
     </div>
