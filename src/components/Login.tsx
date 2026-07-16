@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
+import InstallAppButton from './InstallAppButton'
 
 export default function Login() {
   const { login, loading } = useAuth()
@@ -52,6 +53,10 @@ export default function Login() {
             {loading ? 'جارٍ الدخول...' : 'دخول'}
           </button>
         </form>
+
+        <div className="login-install">
+          <InstallAppButton compact />
+        </div>
       </div>
     </div>
   )

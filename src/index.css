@@ -1261,9 +1261,18 @@ body {
   }
   .header-actions {
     justify-content: stretch;
+    flex-wrap: wrap;
   }
   .header-actions .btn {
     flex: 1;
+  }
+  .install-app-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .install-app-actions .install-platform {
+    width: 100%;
+    justify-content: center;
   }
   .brand h1 {
     font-size: 19px;
@@ -1280,4 +1289,124 @@ body {
   .radio-pill {
     justify-content: center;
   }
+}
+
+/* PWA install */
+.install-app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.install-app-actions.compact {
+  gap: 6px;
+}
+
+.install-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.install-platform img {
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15);
+}
+
+.install-platform.ios {
+  border-color: #cbd5e1;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+}
+
+.install-platform.android {
+  border-color: #bbf7d0;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+  color: #166534;
+}
+
+.portal-header .install-platform {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.portal-header .install-platform.android {
+  color: #14532d;
+}
+
+.login-install {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.install-app-modal {
+  max-width: 520px;
+}
+
+.install-app-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.install-app-brand h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.install-app-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px -8px rgba(15, 118, 110, 0.55);
+  border: 2px solid #ccfbf1;
+}
+
+.install-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.install-tab {
+  border: 1.5px solid var(--border);
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 10px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.install-tab.active {
+  border-color: var(--primary);
+  background: #f0fdfa;
+  color: var(--primary);
+}
+
+.install-steps h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.install-steps ol {
+  margin: 0 0 14px;
+  padding-right: 20px;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.install-now-btn {
+  width: 100%;
 }

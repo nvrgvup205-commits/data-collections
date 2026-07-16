@@ -8,6 +8,7 @@ import {
   type CompanyMeta,
 } from '../lib/companies'
 import CompanyPortal from './CompanyPortal'
+import InstallAppButton from './InstallAppButton'
 
 interface Props {
   slug: string
@@ -120,6 +121,9 @@ export default function CompanyPortalGate({ slug }: Props) {
               {busy ? 'جارٍ الدخول...' : 'دخول إلى البوابة'}
             </button>
           </form>
+          <div className="login-install">
+            <InstallAppButton compact />
+          </div>
         </div>
       </div>
     )

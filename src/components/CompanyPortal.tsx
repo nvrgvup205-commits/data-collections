@@ -16,6 +16,7 @@ import {
   playNewReportAlert,
 } from '../lib/companies'
 import { telHref, whatsappHref } from '../lib/phone'
+import InstallAppButton from './InstallAppButton'
 import MediaImage from './MediaImage'
 
 interface Props {
@@ -204,6 +205,7 @@ export default function CompanyPortal({
           </div>
         </div>
         <div className="header-actions">
+          <InstallAppButton compact />
           <button className="btn secondary" onClick={downloadExcel} disabled={busy || !visible.length}>
             تصدير Excel
           </button>

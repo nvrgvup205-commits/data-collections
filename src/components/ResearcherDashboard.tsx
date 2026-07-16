@@ -28,6 +28,7 @@ import { telHref, whatsappHref } from '../lib/phone'
 import EntryForm from './EntryForm'
 import ExportPanel from './ExportPanel'
 import CompaniesManager from './CompaniesManager'
+import InstallAppButton from './InstallAppButton'
 import MediaImage from './MediaImage'
 
 type View = 'list' | 'form'
@@ -193,6 +194,7 @@ export default function ResearcherDashboard({ onPreviewCompany }: Props) {
           </div>
         </div>
         <div className="header-actions">
+          <InstallAppButton compact />
           <button className="btn secondary" onClick={() => setShowCompanies(true)}>
             بوابات الشركات
           </button>
