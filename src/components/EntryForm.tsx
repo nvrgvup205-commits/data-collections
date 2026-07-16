@@ -30,8 +30,8 @@ interface Props {
   onCancel: () => void
 }
 
-// Max audio note size we persist to localStorage (~1.5MB as data URL).
-const MAX_AUDIO_BYTES = 1_500_000
+// Max audio note as data URL before cloud upload (~5MB).
+const MAX_AUDIO_BYTES = 5_000_000
 
 function blankEntry(sectionId: string): Entry {
   const now = Date.now()
@@ -159,9 +159,7 @@ export default function EntryForm({
 
   const handleAudioNote = (dataUrl: string) => {
     if (dataUrl.length > MAX_AUDIO_BYTES) {
-      alert(
-        'المقطع الصوتي طويل جدًا لحفظه محليًا. سجّل مقطعًا أقصر أو اكتفِ بالنص المكتوب.',
-      )
+      alert('المقطع الصوتي طويل جدًا (الحد 5 ميجابايت). سجّل مقطعًا أقصر.')
       return
     }
     setEntry((prev) => ({ ...prev, audioNote: dataUrl }))

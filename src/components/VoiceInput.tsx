@@ -10,6 +10,20 @@ interface Props {
   onAudioNote: (dataUrl: string) => void
 }
 
+function supportedAudioMime(): string {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/aac',
+    'audio/ogg;codecs=opus',
+  ]
+  for (const t of candidates) {
+    if (MediaRecorder.isTypeSupported(t)) return t
+  }
+  return ''
+}
+
 export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
   const [listening, setListening] = useState(false)
   const [speechMsg, setSpeechMsg] = useState('')
@@ -22,6 +36,7 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
   const retriesRef = useRef(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
 
   const speechSupported = isSpeechSupported()
 
@@ -29,11 +44,12 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
     return () => {
       listeningRef.current = false
       recognitionRef.current?.abort()
-      mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop())
+      mediaRecorderRef.current?.stop()
+      streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 
-  // ---- Speech to text (Chrome / Edge) ----
+  // ---- Speech to text (Chrome / Edge) — optional helper ----
   const buildRecognition = () => {
     const Ctor = getSpeechRecognition()
     if (!Ctor) return null
@@ -65,9 +81,7 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
       if (e.error === 'not-allowed') {
         setSpeechMsg('تم رفض إذن الميكروفون. فعّله من إعدادات المتصفح.')
       } else if (e.error === 'network') {
-        setSpeechMsg(
-          'خدمة تحويل الصوت لنص محجوبة في هذا المتصفح (مثل Brave). استخدم Chrome/Edge، أو سجّل مقطعًا صوتيًا بالأسفل.',
-        )
+        setSpeechMsg('خدمة تحويل الصوت لنص غير متاحة. استخدم تسجيل المقطع الصوتي بالأعلى.')
       } else {
         setSpeechMsg('تعذّر التعرف على الصوت: ' + e.error)
       }
@@ -76,12 +90,11 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
     }
     recognition.onend = () => {
       setInterim('')
-      // continuous=false stops after each phrase; restart while still active.
       if (listeningRef.current) {
         try {
           recognition.start()
         } catch {
-          /* start() can throw if called too quickly; ignore */
+          /* ignore */
         }
       } else {
         setListening(false)
@@ -116,7 +129,7 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
     setInterim('')
   }
 
-  // ---- Audio recording (works in all browsers, incl. Brave) ----
+  // ---- Audio recording (primary — synced to company portal) ----
   const startRecording = async () => {
     setRecMsg('')
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -125,20 +138,28 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mr = new MediaRecorder(stream)
+      streamRef.current = stream
+      const mime = supportedAudioMime()
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
       chunksRef.current = []
       mr.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
       }
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || mime || 'audio/webm' })
         stream.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+        if (!blob.size) {
+          setRecMsg('لم يُسجَّل صوت. جرّب مرة أخرى.')
+          return
+        }
         const reader = new FileReader()
         reader.onloadend = () => onAudioNote(reader.result as string)
         reader.readAsDataURL(blob)
+        setRecMsg('تم حفظ المقطع — سيظهر في بوابة الشركة بعد الحفظ.')
       }
       mediaRecorderRef.current = mr
-      mr.start()
+      mr.start(1000)
       setRecording(true)
       setRecMsg('جارٍ التسجيل... تحدّث الآن ثم اضغط إيقاف.')
     } catch {
@@ -147,45 +168,45 @@ export default function VoiceInput({ onAppendText, onAudioNote }: Props) {
   }
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.stop()
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') mr.stop()
     setRecording(false)
-    setRecMsg('تم حفظ المقطع الصوتي مع بيانات المكان.')
   }
 
   return (
     <div className="voice-tools">
-      {speechSupported ? (
-        <div className="voice-input">
-          <button
-            type="button"
-            className={`mic-btn ${listening ? 'recording' : ''}`}
-            onClick={listening ? stopSpeech : startSpeech}
-          >
-            <span className="mic-dot" />
-            {listening ? 'إيقاف التحويل لنص' : 'تحويل الكلام إلى نص'}
-          </button>
-          {listening && (
-            <span className="hint muted">جارٍ الاستماع... {interim}</span>
-          )}
-          {speechMsg && <span className="hint error">{speechMsg}</span>}
-        </div>
-      ) : (
-        <p className="hint muted">
-          تحويل الكلام لنص يعمل على Chrome / Edge. استخدم تسجيل المقطع الصوتي بالأسفل على أي متصفح.
-        </p>
-      )}
-
-      <div className="voice-input">
+      <div className="voice-input voice-input-primary">
         <button
           type="button"
           className={`mic-btn alt ${recording ? 'recording' : ''}`}
           onClick={recording ? stopRecording : startRecording}
         >
           <span className="mic-dot" />
-          {recording ? 'إيقاف تسجيل المقطع' : '🎙️ تسجيل مقطع صوتي'}
+          {recording ? 'إيقاف التسجيل' : '🎙️ تسجيل مقطع صوتي'}
         </button>
         {recMsg && <span className="hint muted">{recMsg}</span>}
+        <p className="hint muted voice-hint">
+          يُرفع المقطع مع التقرير ويستمع إليه فريق الشركة مباشرة من البوابة.
+        </p>
       </div>
+
+      {speechSupported ? (
+        <details className="voice-stt-details">
+          <summary>تحويل الكلام إلى نص (اختياري)</summary>
+          <div className="voice-input">
+            <button
+              type="button"
+              className={`mic-btn ${listening ? 'recording' : ''}`}
+              onClick={listening ? stopSpeech : startSpeech}
+            >
+              <span className="mic-dot" />
+              {listening ? 'إيقاف التحويل لنص' : 'تحويل الكلام إلى نص'}
+            </button>
+            {listening && <span className="hint muted">جارٍ الاستماع... {interim}</span>}
+            {speechMsg && <span className="hint error">{speechMsg}</span>}
+          </div>
+        </details>
+      ) : null}
     </div>
   )
 }
