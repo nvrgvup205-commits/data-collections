@@ -11,7 +11,6 @@ import {
 import { exportExcel, exportPdf } from '../lib/exporters'
 import { fetchPlaces, fetchSections, subscribePlaces } from '../lib/db'
 import {
-  companyShareUrl,
   fetchCompanyPortalPlaces,
   playNewReportAlert,
 } from '../lib/companies'
@@ -454,12 +453,6 @@ export default function CompanyPortal({
                 <div className="detail-full">
                   <dt>ملاحظات العنوان</dt>
                   <dd>{selected.addressNotes}</dd>
-                </div>
-              )}
-              {portalSlug && (
-                <div className="detail-full">
-                  <dt>رابط بوابة الشركة</dt>
-                  <dd dir="ltr">{companyShareUrl(portalSlug)}</dd>
                 </div>
               )}
               {selected.dealStatus === 'rejected' && (
