@@ -10,11 +10,11 @@ export const PWA_ICONS = [
 ]
 
 export function researcherAppName(): string {
-  return 'تقارير (باحث)'
+  return 'باحث'
 }
 
 export function companyAppName(companyName: string): string {
-  return `تقارير (${companyName.trim()})`
+  return companyName.trim()
 }
 
 export function buildResearcherManifest() {
